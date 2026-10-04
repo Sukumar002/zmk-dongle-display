@@ -3,6 +3,7 @@
 #include <zephyr/init.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include "hana_charge_state_changed.h"
 
 LOG_MODULE_REGISTER(hana_charge_status, LOG_LEVEL_INF);
 
@@ -20,6 +21,7 @@ static const struct device *charge_gpio =
 static struct gpio_callback charge_gpio_cb;
 
 static bool charging;
+static bool charging_state_initialized;
 
 static void update_charging_state(void) {
     int value = gpio_pin_get(charge_gpio, CHARGE_GPIO_PIN);
@@ -29,10 +31,25 @@ static void update_charging_state(void) {
         return;
     }
 
-    charging = (value == 0);
+    bool new_charging = (value == 0);
 
-    LOG_INF("Hana charging state: %s",
-            charging ? "charging" : "not charging");
+    /*
+     * Raise the event once at startup, then only when the charging
+     * state actually changes.
+     */
+    if (!charging_state_initialized || new_charging != charging) {
+        charging = new_charging;
+        charging_state_initialized = true;
+
+        LOG_INF("Hana charging state: %s",
+                charging ? "charging" : "not charging");
+
+        raise_hana_charge_state_changed(
+            (struct hana_charge_state_changed) {
+                .charging = charging,
+            }
+        );
+    }
 }
 
 static void charge_gpio_changed(const struct device *dev,
