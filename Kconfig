@@ -1,0 +1,9 @@
+menu "Hana charging telemetry"
+
+config HANA_CHARGE_STATUS
+    bool "Enable Hana charging-state telemetry"
+    default n
+    help
+      Enables charging-state detection and transport for Hana peripherals.
+
+endmenu
