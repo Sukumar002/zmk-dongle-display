@@ -24,8 +24,8 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
 /*
  * Layout-shift OS mode:
- *   map inactive = Windows semantics
- *   map active   = macOS semantics (GUI <-> Alt)
+ *   map inactive = macOS semantics
+ *   map active   = Windows semantics (GUI <-> Alt)
  *
  * Fall back to the old WIN_BASE layer test if the custom map is absent.
  */
@@ -41,7 +41,7 @@ struct hana_layout_shift_map_data_view {
     bool active;
 };
 
-static bool hana_layout_shift_mac_mode(void) {
+static bool hana_layout_shift_windows_mode(void) {
     if (!device_is_ready(hana_gui_alt_layout_shift)) {
         return false;
     }
@@ -225,7 +225,7 @@ static void modifiers_update_cb(struct modifiers_state state) {
 
 static struct modifiers_state modifiers_get_state(const zmk_event_t *eh) {
 #if HANA_HAS_GUI_ALT_LAYOUT_SHIFT
-    bool windows_mode = !hana_layout_shift_mac_mode();
+    bool windows_mode = hana_layout_shift_windows_mode();
 #else
     bool windows_mode = zmk_keymap_layer_active(HANA_WIN_BASE_LAYER);
 #endif
@@ -272,7 +272,7 @@ int zmk_widget_modifiers_init(
      * Start with the icon family matching the current OS mode.
      */
 #if HANA_HAS_GUI_ALT_LAYOUT_SHIFT
-    current_windows_mode = !hana_layout_shift_mac_mode();
+    current_windows_mode = hana_layout_shift_windows_mode();
 #else
     current_windows_mode = zmk_keymap_layer_active(HANA_WIN_BASE_LAYER);
 #endif
