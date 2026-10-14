@@ -24,8 +24,6 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
 static int64_t last_anim_update_time = 0;
 #define ANIM_UPDATE_INTERVAL_MS 200  // Throttle: max 5 animation checks per second
-#define INTRO_RISE_PX 18
-#define INTRO_DURATION_MS 550
 
 LV_IMG_DECLARE(bongo_cat_none);
 LV_IMG_DECLARE(bongo_cat_left1);
@@ -86,29 +84,6 @@ enum anim_state {
     anim_state_mid,
     anim_state_fast
 } current_anim_state;
-
-static void intro_translate_y_cb(void *obj, int32_t value) {
-    lv_obj_set_style_translate_y((lv_obj_t *)obj, value, LV_PART_MAIN);
-}
-
-static void play_intro(lv_obj_t *obj) {
-    /*
-     * Slide the whole Bongo Cat widget upward from just below its normal
-     * position. Because translate_y is a style transform, the existing
-     * bottom-right alignment remains untouched.
-     */
-    lv_anim_del(obj, intro_translate_y_cb);
-    lv_obj_set_style_translate_y(obj, INTRO_RISE_PX, LV_PART_MAIN);
-
-    lv_anim_t anim;
-    lv_anim_init(&anim);
-    lv_anim_set_var(&anim, obj);
-    lv_anim_set_exec_cb(&anim, intro_translate_y_cb);
-    lv_anim_set_values(&anim, INTRO_RISE_PX, 0);
-    lv_anim_set_duration(&anim, INTRO_DURATION_MS);
-    lv_anim_set_path_cb(&anim, lv_anim_path_ease_out);
-    lv_anim_start(&anim);
-}
 
 static void set_animation(lv_obj_t *animing, struct bongo_cat_wpm_status_state state) {
     // Throttle animation state changes to prevent display thread flooding
@@ -178,7 +153,6 @@ static int bongo_cat_layer_listener(const zmk_event_t *eh) {
         if (base) {
             current_anim_state = anim_state_none;
             lv_obj_clear_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
-            play_intro(widget->obj);
             set_animation(widget->obj, (struct bongo_cat_wpm_status_state){ .wpm = zmk_wpm_get_state() });
         } else {
             /*
@@ -211,18 +185,6 @@ int zmk_widget_bongo_cat_init(struct zmk_widget_bongo_cat *widget, lv_obj_t *par
     widget_bongo_cat_init();
 
     return 0;
-}
-
-void zmk_widget_bongo_cat_play_intro(struct zmk_widget_bongo_cat *widget) {
-    if (widget == NULL || widget->obj == NULL) {
-        return;
-    }
-
-    current_anim_state = anim_state_none;
-    lv_obj_clear_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
-    play_intro(widget->obj);
-    set_animation(widget->obj,
-                  (struct bongo_cat_wpm_status_state){ .wpm = zmk_wpm_get_state() });
 }
 
 lv_obj_t *zmk_widget_bongo_cat_obj(struct zmk_widget_bongo_cat *widget) {
