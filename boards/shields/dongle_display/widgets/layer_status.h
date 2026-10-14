@@ -12,6 +12,8 @@
 struct zmk_widget_layer_status {
     sys_snode_t node;
     lv_obj_t *obj;
+    lv_obj_t *label;
+    lv_obj_t *label_bold;
     uint8_t layer;
 };
 
