@@ -73,11 +73,16 @@ lv_obj_t *zmk_display_status_screen() {
 
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_BONGO_CAT)
     zmk_widget_bongo_cat_init(&bongo_cat_widget, screen);
-    lv_obj_align(zmk_widget_bongo_cat_obj(&bongo_cat_widget), LV_ALIGN_BOTTOM_RIGHT, 0, -12);
+    lv_obj_align(zmk_widget_bongo_cat_obj(&bongo_cat_widget), LV_ALIGN_BOTTOM_RIGHT, 0, -9);
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_WPM)
+    /*
+     * Put the WPM value to the left of Bongo Cat instead of below it.
+     * This keeps the complete label inside the 64 px display and leaves the
+     * full width beneath the cat free for other status elements.
+     */
     lv_obj_align_to(zmk_widget_wpm_status_obj(&wpm_status_widget),
                     zmk_widget_bongo_cat_obj(&bongo_cat_widget),
-                    LV_ALIGN_OUT_BOTTOM_MID, 0, 2);
+                    LV_ALIGN_OUT_LEFT_MID, -2, 1);
 #endif
 #endif
 
