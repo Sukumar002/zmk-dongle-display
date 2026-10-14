@@ -94,14 +94,37 @@ static void set_battery_symbol(lv_obj_t *widget, struct battery_state state) {
     if (state.source >= ZMK_SPLIT_BLE_PERIPHERAL_COUNT + SOURCE_OFFSET) {
         return;
     }
+
     LOG_DBG("source: %d, level: %d, usb: %d", state.source, state.level, state.usb_present);
     lv_obj_t *symbol = battery_objects[state.source].symbol;
     lv_obj_t *label = battery_objects[state.source].label;
 
+    const bool is_dongle = SOURCE_OFFSET && state.source == 0;
+
+    /*
+     * With no battery attached, the dongle ADC can report an empty value while
+     * USB is powering the board. Keep the new dongle battery field out of the
+     * way in that legacy USB-only case.
+     */
+    if (is_dongle && state.level == 0) {
+        lv_obj_add_flag(symbol, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
+
     draw_battery(symbol, state.level, state.usb_present);
-    lv_label_set_text_fmt(label, "%4u%% ", state.level);
-    
-    if (state.level > 0 || state.usb_present) {
+
+    if (is_dongle && state.usb_present) {
+        if (state.level >= 100) {
+            lv_label_set_text_fmt(label, "FULL %u%%", state.level);
+        } else {
+            lv_label_set_text_fmt(label, "CHG %u%%", state.level);
+        }
+    } else {
+        lv_label_set_text_fmt(label, "%u%%", state.level);
+    }
+
+    if (state.level > 0) {
         lv_obj_clear_flag(symbol, LV_OBJ_FLAG_HIDDEN);
         lv_obj_move_foreground(symbol);
         lv_obj_clear_flag(label, LV_OBJ_FLAG_HIDDEN);
@@ -162,7 +185,12 @@ ZMK_SUBSCRIPTION(widget_dongle_battery_status, zmk_usb_conn_state_changed);
 int zmk_widget_dongle_battery_status_init(struct zmk_widget_dongle_battery_status *widget, lv_obj_t *parent) {
     widget->obj = lv_obj_create(parent);
 
-    lv_obj_set_size(widget->obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    /*
+     * Reserve the right side of the display for battery telemetry.
+     * Source 0 (when enabled) is the dongle itself and is placed toward the
+     * centre of the OLED. Split-half batteries remain stacked at the far right.
+     */
+    lv_obj_set_size(widget->obj, 78, 24);
 
     for (int i = 0; i < ZMK_SPLIT_BLE_PERIPHERAL_COUNT + SOURCE_OFFSET; i++) {
         lv_obj_t *image_canvas = lv_canvas_create(widget->obj);
@@ -170,12 +198,18 @@ int zmk_widget_dongle_battery_status_init(struct zmk_widget_dongle_battery_statu
 
         lv_canvas_set_buffer(image_canvas, battery_image_buffer[i], 5, 8, LV_COLOR_FORMAT_L8);
 
-        lv_obj_align(image_canvas, LV_ALIGN_TOP_RIGHT, 0, i * 10);
-        lv_obj_align_to(battery_label, image_canvas, LV_ALIGN_OUT_LEFT_MID, 0, 0);
+        if (SOURCE_OFFSET && i == 0) {
+            lv_obj_align(image_canvas, LV_ALIGN_TOP_LEFT, 0, 4);
+            lv_obj_align_to(battery_label, image_canvas, LV_ALIGN_OUT_RIGHT_MID, 2, 0);
+        } else {
+            int peripheral_index = i - SOURCE_OFFSET;
+            lv_obj_align(image_canvas, LV_ALIGN_TOP_RIGHT, 0, peripheral_index * 10);
+            lv_obj_align_to(battery_label, image_canvas, LV_ALIGN_OUT_LEFT_MID, -1, 0);
+        }
 
         lv_obj_add_flag(image_canvas, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(battery_label, LV_OBJ_FLAG_HIDDEN);
-        
+
         battery_objects[i] = (struct battery_object){
             .symbol = image_canvas,
             .label = battery_label,
