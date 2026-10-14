@@ -69,14 +69,16 @@ lv_obj_t *zmk_display_status_screen() {
 
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_WPM)
     zmk_widget_wpm_status_init(&wpm_status_widget, screen);
-    lv_obj_align_to(zmk_widget_wpm_status_obj(&wpm_status_widget), zmk_widget_output_status_obj(&output_status_widget), LV_ALIGN_OUT_RIGHT_MID, 7, 0);
 #endif
 
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_BONGO_CAT)
     zmk_widget_bongo_cat_init(&bongo_cat_widget, screen);
-    lv_obj_align(zmk_widget_bongo_cat_obj(&bongo_cat_widget), LV_ALIGN_BOTTOM_RIGHT, 0, -7);
-    /* On first boot, have the cat rise into the desk area from below. */
-    zmk_widget_bongo_cat_play_intro(&bongo_cat_widget);
+    lv_obj_align(zmk_widget_bongo_cat_obj(&bongo_cat_widget), LV_ALIGN_BOTTOM_RIGHT, 0, -12);
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_WPM)
+    lv_obj_align_to(zmk_widget_wpm_status_obj(&wpm_status_widget),
+                    zmk_widget_bongo_cat_obj(&bongo_cat_widget),
+                    LV_ALIGN_OUT_BOTTOM_MID, 0, 2);
+#endif
 #endif
 
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_MODIFIERS)
