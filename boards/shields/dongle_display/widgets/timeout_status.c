@@ -97,6 +97,7 @@ static void set_timeout_text(lv_obj_t *label, enum zmk_runtime_timeout_kind kind
 struct timeout_state {
     enum zmk_runtime_timeout_kind kind;
     uint32_t timeout_ms;
+    enum zmk_runtime_timeout_feedback feedback;
 };
 
 static struct timeout_state timeout_status_get_state(const zmk_event_t *eh) {
@@ -104,11 +105,18 @@ static struct timeout_state timeout_status_get_state(const zmk_event_t *eh) {
     return (struct timeout_state) {
         .kind = ev->kind,
         .timeout_ms = ev->timeout_ms,
+        .feedback = ev->feedback,
     };
 }
 
 static void timeout_status_update_cb(struct timeout_state state) {
     if (active_widget == NULL) {
+        return;
+    }
+
+    if (state.feedback == ZMK_RUNTIME_TIMEOUT_FEEDBACK_HIDE) {
+        lv_timer_pause(active_widget->hide_timer);
+        lv_obj_add_flag(active_widget->obj, LV_OBJ_FLAG_HIDDEN);
         return;
     }
 
@@ -123,9 +131,15 @@ static void timeout_status_update_cb(struct timeout_state state) {
     lv_obj_clear_flag(active_widget->obj, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(active_widget->obj);
 
-    lv_timer_set_period(active_widget->hide_timer, 2500);
-    lv_timer_reset(active_widget->hide_timer);
-    lv_timer_resume(active_widget->hide_timer);
+    if (state.feedback == ZMK_RUNTIME_TIMEOUT_FEEDBACK_HOLD) {
+        /* Hold-to-view remains visible only for as long as the key is held. */
+        lv_timer_pause(active_widget->hide_timer);
+    } else {
+        /* A changed value remains visible briefly after a normal tap. */
+        lv_timer_set_period(active_widget->hide_timer, 2500);
+        lv_timer_reset(active_widget->hide_timer);
+        lv_timer_resume(active_widget->hide_timer);
+    }
 }
 
 ZMK_DISPLAY_WIDGET_LISTENER(widget_timeout_status, struct timeout_state,
