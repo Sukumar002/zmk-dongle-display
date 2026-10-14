@@ -53,8 +53,8 @@ static void set_wpm(struct zmk_widget_wpm_status *widget,
     last_wpm = state.wpm;
     last_wpm_update_time = now;
 
-    char wpm_text[12];
-    snprintf(wpm_text, sizeof(wpm_text), "%d WPM", state.wpm);
+    char wpm_text[8];
+    snprintf(wpm_text, sizeof(wpm_text), "%d", state.wpm);
     lv_label_set_text(widget->wpm_label, wpm_text);
 }
 
@@ -73,8 +73,8 @@ static int wpm_layer_listener(const zmk_event_t *eh) {
     struct zmk_widget_wpm_status *widget;
     SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
         if (base && base_wpm_enabled) {
-            char wpm_text[12];
-            snprintf(wpm_text, sizeof(wpm_text), "%d WPM", last_wpm);
+            char wpm_text[8];
+            snprintf(wpm_text, sizeof(wpm_text), "%d", last_wpm);
             lv_label_set_text(widget->wpm_label, wpm_text);
             lv_obj_clear_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
         } else {
@@ -105,9 +105,9 @@ int zmk_widget_wpm_status_init(struct zmk_widget_wpm_status *widget,
     widget->wpm_label = lv_label_create(widget->obj);
     lv_obj_set_width(widget->wpm_label, 48);
     lv_label_set_long_mode(widget->wpm_label, LV_LABEL_LONG_CLIP);
-    lv_obj_set_style_text_align(widget->wpm_label, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(widget->wpm_label, LV_ALIGN_CENTER, 0, 0);
-    lv_label_set_text(widget->wpm_label, "0 WPM");
+    lv_obj_set_style_text_align(widget->wpm_label, LV_TEXT_ALIGN_RIGHT, 0);
+    lv_obj_align(widget->wpm_label, LV_ALIGN_RIGHT_MID, -3, 0);
+    lv_label_set_text(widget->wpm_label, "0");
 
     if (zmk_keymap_highest_layer_active() != 0 || !base_wpm_enabled) {
         lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
@@ -125,8 +125,8 @@ void zmk_widget_wpm_set_base_enabled(bool enabled) {
     struct zmk_widget_wpm_status *widget;
     SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
         if (enabled && zmk_keymap_highest_layer_active() == 0) {
-            char wpm_text[12];
-            snprintf(wpm_text, sizeof(wpm_text), "%d WPM", last_wpm);
+            char wpm_text[8];
+            snprintf(wpm_text, sizeof(wpm_text), "%d", last_wpm);
             lv_label_set_text(widget->wpm_label, wpm_text);
             lv_obj_clear_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
         } else {
