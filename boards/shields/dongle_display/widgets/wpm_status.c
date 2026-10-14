@@ -6,6 +6,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/display.h>
 #include <zmk/event_manager.h>
 #include <zmk/events/wpm_state_changed.h>
+#include <zmk/events/layer_state_changed.h>
 #include <zmk/display/widgets/layer_status.h>
 #include <zmk/endpoints.h>
 #include <zmk/keymap.h>
