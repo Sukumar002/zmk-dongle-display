@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <stdint.h>
 #include <string.h>
 
 #include <zephyr/settings/settings.h>
@@ -8,40 +9,77 @@
 #include "../boards/shields/dongle_display/widgets/wpm_status.h"
 #include "../boards/shields/dongle_display/widgets/layer_status.h"
 
-static bool cat_enabled = true;
+static uint8_t base_view_mode = HANA_BASE_VIEW_CAT_WPM;
 
-bool hana_base_view_cat_enabled(void) {
-    return cat_enabled;
+enum hana_base_view_mode hana_base_view_get_mode(void) {
+    return (enum hana_base_view_mode)base_view_mode;
 }
 
 static void apply_base_view(void) {
-    zmk_widget_bongo_cat_set_base_enabled(cat_enabled);
-    zmk_widget_wpm_set_base_enabled(cat_enabled);
-    zmk_widget_layer_status_set_base_text_enabled(!cat_enabled);
+    bool cat = base_view_mode == HANA_BASE_VIEW_CAT_WPM ||
+               base_view_mode == HANA_BASE_VIEW_CAT_ONLY;
+    bool text = base_view_mode == HANA_BASE_VIEW_TEXT_WPM ||
+                base_view_mode == HANA_BASE_VIEW_TEXT_ONLY;
+    bool wpm = base_view_mode == HANA_BASE_VIEW_CAT_WPM ||
+               base_view_mode == HANA_BASE_VIEW_TEXT_WPM;
+
+    zmk_widget_bongo_cat_set_base_enabled(cat);
+    zmk_widget_wpm_set_base_enabled(wpm);
+    zmk_widget_layer_status_set_base_text_enabled(text);
 }
 
-void hana_base_view_toggle(void) {
-    cat_enabled = !cat_enabled;
+void hana_base_view_cycle(void) {
+    base_view_mode = (base_view_mode + 1) % HANA_BASE_VIEW_MODE_COUNT;
+
 #if IS_ENABLED(CONFIG_SETTINGS)
-    settings_save_one("hana_base_view/cat", &cat_enabled, sizeof(cat_enabled));
+    settings_save_one("hana_base_view/mode", &base_view_mode, sizeof(base_view_mode));
 #endif
+
     apply_base_view();
 }
 
 #if IS_ENABLED(CONFIG_SETTINGS)
 static int base_view_settings_set(const char *name, size_t len,
                                   settings_read_cb read_cb, void *cb_arg) {
-    if (strcmp(name, "cat") != 0 || len != sizeof(cat_enabled)) {
-        return -ENOENT;
+    if (strcmp(name, "mode") == 0) {
+        uint8_t mode;
+
+        if (len != sizeof(mode)) {
+            return -EINVAL;
+        }
+
+        int rc = read_cb(cb_arg, &mode, sizeof(mode));
+        if (rc < 0) {
+            return rc;
+        }
+
+        if (mode >= HANA_BASE_VIEW_MODE_COUNT) {
+            return -EINVAL;
+        }
+
+        base_view_mode = mode;
+        apply_base_view();
+        return 0;
     }
 
-    int rc = read_cb(cb_arg, &cat_enabled, sizeof(cat_enabled));
-    if (rc < 0) {
-        return rc;
+    if (strcmp(name, "cat") == 0) {
+        bool cat;
+
+        if (len != sizeof(cat)) {
+            return -EINVAL;
+        }
+
+        int rc = read_cb(cb_arg, &cat, sizeof(cat));
+        if (rc < 0) {
+            return rc;
+        }
+
+        base_view_mode = cat ? HANA_BASE_VIEW_CAT_WPM : HANA_BASE_VIEW_TEXT_ONLY;
+        apply_base_view();
+        return 0;
     }
 
-    apply_base_view();
-    return 0;
+    return -ENOENT;
 }
 
 SETTINGS_STATIC_HANDLER_DEFINE(hana_base_view, "hana_base_view", NULL,
