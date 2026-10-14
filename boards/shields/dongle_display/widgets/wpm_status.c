@@ -53,8 +53,8 @@ static void set_wpm(struct zmk_widget_wpm_status *widget,
     last_wpm = state.wpm;
     last_wpm_update_time = now;
 
-    char wpm_text[8];
-    snprintf(wpm_text, sizeof(wpm_text), "%d", state.wpm);
+    char wpm_text[12];
+    snprintf(wpm_text, sizeof(wpm_text), "%d WPM", state.wpm);
     lv_label_set_text(widget->wpm_label, wpm_text);
 }
 
@@ -73,8 +73,8 @@ static int wpm_layer_listener(const zmk_event_t *eh) {
     struct zmk_widget_wpm_status *widget;
     SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
         if (base && base_wpm_enabled) {
-            char wpm_text[8];
-            snprintf(wpm_text, sizeof(wpm_text), "%d", last_wpm);
+            char wpm_text[12];
+            snprintf(wpm_text, sizeof(wpm_text), "%d WPM", last_wpm);
             lv_label_set_text(widget->wpm_label, wpm_text);
             lv_obj_clear_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
         } else {
@@ -95,13 +95,19 @@ ZMK_SUBSCRIPTION(widget_wpm_status, zmk_wpm_state_changed);
 int zmk_widget_wpm_status_init(struct zmk_widget_wpm_status *widget,
                                lv_obj_t *parent) {
     widget->obj = lv_obj_create(parent);
-    lv_obj_set_size(widget->obj, 24, 9);
+    lv_obj_set_size(widget->obj, 50, 26);
+    lv_obj_set_style_bg_opa(widget->obj, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(widget->obj, 1, 0);
+    lv_obj_set_style_border_color(widget->obj, lv_color_black(), 0);
+    lv_obj_set_style_radius(widget->obj, 2, 0);
+    lv_obj_set_style_pad_all(widget->obj, 0, 0);
 
     widget->wpm_label = lv_label_create(widget->obj);
-    lv_obj_set_width(widget->wpm_label, 24);
+    lv_obj_set_width(widget->wpm_label, 48);
+    lv_label_set_long_mode(widget->wpm_label, LV_LABEL_LONG_CLIP);
     lv_obj_set_style_text_align(widget->wpm_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(widget->wpm_label, LV_ALIGN_CENTER, 0, 0);
-    lv_label_set_text(widget->wpm_label, "0");
+    lv_label_set_text(widget->wpm_label, "0 WPM");
 
     if (zmk_keymap_highest_layer_active() != 0 || !base_wpm_enabled) {
         lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
@@ -119,8 +125,8 @@ void zmk_widget_wpm_set_base_enabled(bool enabled) {
     struct zmk_widget_wpm_status *widget;
     SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
         if (enabled && zmk_keymap_highest_layer_active() == 0) {
-            char wpm_text[8];
-            snprintf(wpm_text, sizeof(wpm_text), "%d", last_wpm);
+            char wpm_text[12];
+            snprintf(wpm_text, sizeof(wpm_text), "%d WPM", last_wpm);
             lv_label_set_text(widget->wpm_label, wpm_text);
             lv_obj_clear_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
         } else {
