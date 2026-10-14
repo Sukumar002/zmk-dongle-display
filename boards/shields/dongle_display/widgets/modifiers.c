@@ -13,25 +13,46 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/event_manager.h>
 #include <zmk/events/keycode_state_changed.h>
 #include <zmk/events/layer_state_changed.h>
+#include <zmk/events/position_state_changed.h>
 #include <zmk/hid.h>
 #include <zmk/keymap.h>
 #include <dt-bindings/zmk/modifiers.h>
+#include <zephyr/device.h>
+#include <zephyr/devicetree.h>
 
 #include "modifiers.h"
 
 /*
- * Hana layers:
- *   0 = MAC_BASE
- *   1 = WIN_BASE
- *   2 = NUM
- *   3 = NAV
- *   4 = CONNECTION
+ * Layout-shift OS mode:
+ *   map inactive = macOS semantics
+ *   map active   = Windows semantics (GUI <-> Alt)
  *
- * WIN_BASE is a toggled layer, so checking whether layer 1 is active
- * tells us which modifier icon family should be displayed even while
- * NUM/NAV/CONNECTION are temporarily active above it.
+ * Fall back to the old WIN_BASE layer test if the custom map is absent.
  */
 #define HANA_WIN_BASE_LAYER 1
+
+#if DT_NODE_EXISTS(DT_NODELABEL(layout_shift_map_gui_alt))
+#define HANA_HAS_GUI_ALT_LAYOUT_SHIFT 1
+static const struct device *const hana_gui_alt_layout_shift =
+    DEVICE_DT_GET(DT_NODELABEL(layout_shift_map_gui_alt));
+
+struct hana_layout_shift_map_data_view {
+    zmk_mod_flags_t modifier_map[8];
+    bool active;
+};
+
+static bool hana_layout_shift_windows_mode(void) {
+    if (!device_is_ready(hana_gui_alt_layout_shift)) {
+        return false;
+    }
+
+    const struct hana_layout_shift_map_data_view *data =
+        hana_gui_alt_layout_shift->data;
+    return data->active;
+}
+#else
+#define HANA_HAS_GUI_ALT_LAYOUT_SHIFT 0
+#endif
 
 struct modifiers_state {
     uint8_t modifiers;
@@ -203,9 +224,15 @@ static void modifiers_update_cb(struct modifiers_state state) {
 }
 
 static struct modifiers_state modifiers_get_state(const zmk_event_t *eh) {
+#if HANA_HAS_GUI_ALT_LAYOUT_SHIFT
+    bool windows_mode = hana_layout_shift_windows_mode();
+#else
+    bool windows_mode = zmk_keymap_layer_active(HANA_WIN_BASE_LAYER);
+#endif
+
     return (struct modifiers_state) {
         .modifiers = zmk_hid_get_explicit_mods(),
-        .windows_mode = zmk_keymap_layer_active(HANA_WIN_BASE_LAYER),
+        .windows_mode = windows_mode,
     };
 }
 
@@ -218,6 +245,7 @@ ZMK_DISPLAY_WIDGET_LISTENER(
 
 ZMK_SUBSCRIPTION(widget_modifiers, zmk_keycode_state_changed);
 ZMK_SUBSCRIPTION(widget_modifiers, zmk_layer_state_changed);
+ZMK_SUBSCRIPTION(widget_modifiers, zmk_position_state_changed);
 
 int zmk_widget_modifiers_init(
     struct zmk_widget_modifiers *widget,
@@ -241,10 +269,18 @@ int zmk_widget_modifiers_init(
     };
 
     /*
-     * Start with Mac icons because MAC_BASE is Hana's default layer.
+     * Start with the icon family matching the current OS mode.
      */
-    configure_mac_symbols();
-    current_windows_mode = false;
+#if HANA_HAS_GUI_ALT_LAYOUT_SHIFT
+    current_windows_mode = hana_layout_shift_windows_mode();
+#else
+    current_windows_mode = zmk_keymap_layer_active(HANA_WIN_BASE_LAYER);
+#endif
+    if (current_windows_mode) {
+        configure_windows_symbols();
+    } else {
+        configure_mac_symbols();
+    }
 
     for (int i = 0; i < NUM_SYMBOLS; i++) {
         modifier_slots[i].symbol = lv_img_create(widget->obj);
