@@ -112,42 +112,34 @@ static void draw_mouse(lv_obj_t *c) {
     rect(c, 14, 3, 5, 4);
 }
 
-static void draw_gear(lv_obj_t *c, uint8_t phase) {
+static void draw_gear(lv_obj_t *c) {
     clear(c);
 
     const int cx = 16, cy = 12;
 
-    /* Hollow centre and compact outline ring. */
-    rect(c, cx - 5, cy - 5, 11, 11);
-    rect(c, cx - 2, cy - 2, 5, 5);
-
     /*
-     * Eight-frame tooth pattern. The body stays constant while the outer
-     * teeth advance around it, giving a clear rotating settings-gear effect.
+     * Static settings gear, optimized for the 32x24 monochrome canvas.
+     * A solid, symmetric silhouette reads much more clearly at this size
+     * than the previous animated tooth approximation.
      */
-    static const int8_t teeth[8][8][2] = {
-        {{ 0,-8},{ 5,-6},{ 8, 0},{ 5, 6},{ 0, 8},{-5, 6},{-8, 0},{-5,-6}},
-        {{ 2,-8},{ 6,-5},{ 8, 2},{ 5, 6},{-2, 8},{-6, 5},{-8,-2},{-5,-6}},
-        {{ 4,-7},{ 7,-4},{ 7, 4},{ 4, 7},{-4, 7},{-7, 4},{-7,-4},{-4,-7}},
-        {{ 5,-6},{ 8,-2},{ 6, 5},{ 2, 8},{-5, 6},{-8, 2},{-6,-5},{-2,-8}},
-        {{ 0,-8},{ 6,-5},{ 8, 0},{ 6, 5},{ 0, 8},{-6, 5},{-8, 0},{-6,-5}},
-        {{-2,-8},{ 5,-6},{ 8,-2},{ 6, 5},{ 2, 8},{-5, 6},{-8, 2},{-6,-5}},
-        {{-4,-7},{ 4,-7},{ 7,-4},{ 7, 4},{ 4, 7},{-4, 7},{-7, 4},{-7,-4}},
-        {{-5,-6},{ 2,-8},{ 6,-5},{ 8, 2},{ 5, 6},{-2, 8},{-6, 5},{-8,-2}},
-    };
 
-    uint8_t f = phase & 7;
-    for (int i = 0; i < 8; i++) {
-        int x = cx + teeth[f][i][0];
-        int y = cy + teeth[f][i][1];
-        px(c, x, y);
+    /* Outer teeth. */
+    rect(c, cx - 2, 2, 5, 3);
+    rect(c, cx - 2, 19, 5, 3);
+    rect(c, 6, cy - 2, 3, 5);
+    rect(c, 23, cy - 2, 3, 5);
 
-        /* Give cardinal/near-cardinal teeth a second pixel for readability. */
-        if (teeth[f][i][0] == 0 || teeth[f][i][1] == 0) {
-            if (teeth[f][i][0] == 0) px(c, x + 1, y);
-            if (teeth[f][i][1] == 0) px(c, x, y + 1);
-        }
-    }
+    rect(c, 8, 4, 4, 4);
+    rect(c, 20, 4, 4, 4);
+    rect(c, 8, 16, 4, 4);
+    rect(c, 20, 16, 4, 4);
+
+    /* Main gear body. */
+    rect(c, 11, 6, 11, 13);
+    rect(c, 9, 8, 15, 9);
+
+    /* Hollow centre. */
+    rect(c, 14, 10, 5, 5);
 }
 
 static void redraw(struct zmk_widget_layer_status *widget) {
@@ -159,7 +151,7 @@ static void redraw(struct zmk_widget_layer_status *widget) {
         draw_nav(widget->obj);
         break;
     case 3:
-        draw_gear(widget->obj, widget->gear_phase);
+        draw_gear(widget->obj);
         break;
     case 4:
         draw_mouse(widget->obj);
@@ -170,16 +162,6 @@ static void redraw(struct zmk_widget_layer_status *widget) {
     }
 }
 
-static void gear_timer_cb(lv_timer_t *timer) {
-    struct zmk_widget_layer_status *widget = lv_timer_get_user_data(timer);
-    if (widget->layer != 3) {
-        lv_timer_pause(timer);
-        return;
-    }
-
-    widget->gear_phase = (widget->gear_phase + 1) & 7;
-    redraw(widget);
-}
 
 struct layer_status_state {
     uint8_t index;
@@ -190,23 +172,12 @@ static void set_layer_symbol(struct zmk_widget_layer_status *widget,
     widget->layer = state.index;
 
     if (state.index == 0) {
-        lv_timer_pause(widget->anim_timer);
         lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
         return;
     }
 
     lv_obj_clear_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
-
-    if (state.index == 3) {
-        widget->gear_phase = 0;
-        redraw(widget);
-        lv_timer_set_period(widget->anim_timer, 140);
-        lv_timer_reset(widget->anim_timer);
-        lv_timer_resume(widget->anim_timer);
-    } else {
-        lv_timer_pause(widget->anim_timer);
-        redraw(widget);
-    }
+    redraw(widget);
 }
 
 static void layer_status_update_cb(struct layer_status_state state) {
@@ -231,11 +202,7 @@ ZMK_SUBSCRIPTION(widget_layer_status, zmk_layer_state_changed);
 int zmk_widget_layer_status_init(struct zmk_widget_layer_status *widget, lv_obj_t *parent) {
     widget->obj = lv_canvas_create(parent);
     lv_canvas_set_buffer(widget->obj, icon_buffers[0], ICON_W, ICON_H, LV_COLOR_FORMAT_L8);
-    widget->gear_phase = 0;
     widget->layer = zmk_keymap_highest_layer_active();
-
-    widget->anim_timer = lv_timer_create(gear_timer_cb, 140, widget);
-    lv_timer_pause(widget->anim_timer);
 
     sys_slist_append(&widgets, &widget->node);
 
@@ -243,9 +210,6 @@ int zmk_widget_layer_status_init(struct zmk_widget_layer_status *widget, lv_obj_
         lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
     } else {
         redraw(widget);
-        if (widget->layer == 3) {
-            lv_timer_resume(widget->anim_timer);
-        }
     }
 
     widget_layer_status_init();
