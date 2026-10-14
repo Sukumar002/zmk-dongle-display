@@ -48,26 +48,37 @@ static void draw_keyboard_icon(lv_obj_t *canvas) {
 static void draw_usb_icon(lv_obj_t *canvas) {
     clear_icon(canvas);
 
-    for (int y = 1; y <= 6; y++) {
-        px(canvas, 5, y);
-    }
-    px(canvas, 5, 0);
-    px(canvas, 4, 1);
-    px(canvas, 6, 1);
-
-    px(canvas, 4, 4);
-    px(canvas, 3, 4);
+    /*
+     * Landscape USB plug, deliberately using the same 12x8 footprint as the
+     * keyboard icon so the two timeout indicators read as a matched pair.
+     *
+     * cable -> [==== USB plug ====]
+     */
+    px(canvas, 0, 3);
+    px(canvas, 1, 3);
     px(canvas, 2, 3);
-    px(canvas, 2, 2);
-    px(canvas, 1, 2);
+    px(canvas, 2, 4);
+    px(canvas, 1, 4);
+    px(canvas, 0, 4);
 
-    px(canvas, 6, 5);
-    px(canvas, 7, 5);
-    px(canvas, 8, 6);
-    px(canvas, 9, 6);
-    px(canvas, 9, 5);
-    px(canvas, 10, 6);
-    px(canvas, 9, 7);
+    for (int x = 3; x <= 9; x++) {
+        px(canvas, x, 1);
+        px(canvas, x, 6);
+    }
+    for (int y = 2; y <= 5; y++) {
+        px(canvas, 3, y);
+        px(canvas, 9, y);
+    }
+
+    /* USB-A tongue/contact suggestion at the connector end. */
+    px(canvas, 10, 2);
+    px(canvas, 11, 2);
+    px(canvas, 10, 5);
+    px(canvas, 11, 5);
+    px(canvas, 7, 3);
+    px(canvas, 8, 3);
+    px(canvas, 7, 4);
+    px(canvas, 8, 4);
 }
 
 static void hide_timer_cb(lv_timer_t *timer) {
