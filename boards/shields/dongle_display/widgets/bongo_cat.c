@@ -181,7 +181,12 @@ static int bongo_cat_layer_listener(const zmk_event_t *eh) {
             play_intro(widget->obj);
             set_animation(widget->obj, (struct bongo_cat_wpm_status_state){ .wpm = zmk_wpm_get_state() });
         } else {
-            lv_animimg_stop(widget->obj);
+            /*
+             * LVGL 9 does not expose lv_animimg_stop() in this build.
+             * Deleting animations attached to the animimg object stops the
+             * current Bongo Cat frame animation before hiding it.
+             */
+            lv_anim_del(widget->obj, NULL);
             lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
         }
     }
