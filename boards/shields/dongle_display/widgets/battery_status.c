@@ -6,6 +6,8 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/bluetooth/services/bas.h>
+#include <zephyr/settings/settings.h>
+#include <string.h>
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
@@ -39,6 +41,7 @@ struct battery_state {
     uint8_t level;
     bool usb_present;
     bool charging;
+    bool present;
 };
 
 struct battery_object {
@@ -52,6 +55,41 @@ static lv_color_t charge_image_buffer[ZMK_SPLIT_BLE_PERIPHERAL_COUNT + SOURCE_OF
 
 static uint8_t cached_levels[ZMK_SPLIT_BLE_PERIPHERAL_COUNT + SOURCE_OFFSET];
 static bool cached_charging[ZMK_SPLIT_BLE_PERIPHERAL_COUNT + SOURCE_OFFSET];
+
+/*
+ * The nice!nano V2 battery source is VDDH, which also sees USB power.
+ * Therefore USB-only operation can look like a full battery even when no
+ * battery is physically attached. Latch "battery installed" only after the
+ * dongle has actually run without USB power; a USB-only dongle can never do
+ * that, so its phantom battery stays hidden.
+ */
+static bool dongle_battery_seen;
+
+#if IS_ENABLED(CONFIG_SETTINGS)
+static int dongle_battery_settings_set(const char *name, size_t len,
+                                       settings_read_cb read_cb, void *cb_arg) {
+    if (strcmp(name, "seen") != 0 || len != sizeof(dongle_battery_seen)) {
+        return -ENOENT;
+    }
+
+    return read_cb(cb_arg, &dongle_battery_seen, sizeof(dongle_battery_seen));
+}
+
+SETTINGS_STATIC_HANDLER_DEFINE(hana_dongle_battery, "hana_dongle_battery", NULL,
+                               dongle_battery_settings_set, NULL, NULL);
+#endif
+
+static void remember_dongle_battery_present(void) {
+    if (dongle_battery_seen) {
+        return;
+    }
+
+    dongle_battery_seen = true;
+#if IS_ENABLED(CONFIG_SETTINGS)
+    settings_save_one("hana_dongle_battery/seen", &dongle_battery_seen,
+                      sizeof(dongle_battery_seen));
+#endif
+}
 
 static void draw_battery(lv_obj_t *canvas, uint8_t level, bool usb_present) {
     lv_canvas_fill_bg(canvas, lv_color_black(), LV_OPA_COVER);
@@ -154,6 +192,14 @@ static void set_battery_symbol(lv_obj_t *widget, struct battery_state state) {
      * USB is powering the board. Keep the new dongle battery field out of the
      * way in that legacy USB-only case.
      */
+    if (is_dongle && !state.present) {
+        stop_charge_breathing(charge_icon);
+        lv_obj_add_flag(symbol, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(charge_icon, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
+
     if (is_dongle && state.level == 0) {
         stop_charge_breathing(charge_icon);
         lv_obj_add_flag(symbol, LV_OBJ_FLAG_HIDDEN);
@@ -209,6 +255,7 @@ static struct battery_state peripheral_battery_status_get_state(const zmk_event_
         .source = source,
         .level = ev->state_of_charge,
         .charging = cached_charging[source],
+        .present = true,
     };
 }
 
@@ -220,23 +267,39 @@ static struct battery_state peripheral_charge_status_get_state(const zmk_event_t
         .source = source,
         .level = cached_levels[source],
         .charging = ev->charging,
+        .present = true,
     };
 }
 
 static struct battery_state central_battery_status_get_state(const zmk_event_t *eh) {
     const struct zmk_battery_state_changed *ev = as_zmk_battery_state_changed(eh);
+    uint8_t level = (ev != NULL) ? ev->state_of_charge : zmk_battery_state_of_charge();
+
+#if IS_ENABLED(CONFIG_USB_DEVICE_STACK)
+    bool usb_present = zmk_usb_is_powered();
+#else
+    bool usb_present = false;
+#endif
+
+    /*
+     * If the dongle is alive without USB and reports a battery level, a real
+     * battery must be installed. Remember that fact for later USB charging
+     * sessions so the battery field can remain visible while plugged in.
+     */
+    if (!usb_present && level > 0) {
+        remember_dongle_battery_present();
+    }
+
     return (struct battery_state) {
         .source = 0,
-        .level = (ev != NULL) ? ev->state_of_charge : zmk_battery_state_of_charge(),
-#if IS_ENABLED(CONFIG_USB_DEVICE_STACK)
-        .usb_present = zmk_usb_is_powered(),
+        .level = level,
+        .usb_present = usb_present,
+        .present = dongle_battery_seen,
         /*
          * Until the exact dongle clone charge-status GPIO is known, VBUS plus
-         * a not-full battery is the charging indication for the dongle.
+         * a not-full battery is the charging indication for an installed pack.
          */
-        .charging = zmk_usb_is_powered() &&
-                    ((ev != NULL ? ev->state_of_charge : zmk_battery_state_of_charge()) < 100),
-#endif /* IS_ENABLED(CONFIG_USB_DEVICE_STACK) */
+        .charging = dongle_battery_seen && usb_present && level < 100,
     };
 }
 
@@ -270,9 +333,12 @@ int zmk_widget_dongle_battery_status_init(struct zmk_widget_dongle_battery_statu
     widget->obj = lv_obj_create(parent);
 
     /*
-     * Reserve the right side of the display for battery telemetry.
-     * Source 0 (when enabled) is the dongle itself and is placed toward the
-     * centre of the OLED. Split-half batteries remain stacked at the far right.
+     * Fixed battery layout:
+     *   - dongle field begins near the centre of the OLED
+     *   - left/right half percentages stay in the original far-right stack
+     *
+     * Explicit coordinates avoid the clipping/regression introduced by
+     * nesting the half labels around the new dongle field.
      */
     lv_obj_set_size(widget->obj, 78, 24);
 
@@ -286,14 +352,17 @@ int zmk_widget_dongle_battery_status_init(struct zmk_widget_dongle_battery_statu
         draw_charge_flash(charge_canvas);
 
         if (SOURCE_OFFSET && i == 0) {
-            lv_obj_align(image_canvas, LV_ALIGN_TOP_LEFT, 0, 4);
-            lv_obj_align_to(charge_canvas, image_canvas, LV_ALIGN_CENTER, 0, 0);
-            lv_obj_align_to(battery_label, image_canvas, LV_ALIGN_OUT_RIGHT_MID, 2, 0);
+            /* Dongle: centre-side field. */
+            lv_obj_set_pos(image_canvas, 0, 4);
+            lv_obj_set_pos(charge_canvas, 0, 4);
+            lv_obj_set_pos(battery_label, 8, 2);
         } else {
+            /* Split halves: preserve a stable right-side percentage stack. */
             int peripheral_index = i - SOURCE_OFFSET;
-            lv_obj_align(image_canvas, LV_ALIGN_TOP_RIGHT, 0, peripheral_index * 10);
-            lv_obj_align_to(charge_canvas, image_canvas, LV_ALIGN_CENTER, 0, 0);
-            lv_obj_align_to(battery_label, image_canvas, LV_ALIGN_OUT_LEFT_MID, -1, 0);
+            int y = peripheral_index * 10;
+            lv_obj_set_pos(battery_label, 43, y - 1);
+            lv_obj_set_pos(image_canvas, 72, y);
+            lv_obj_set_pos(charge_canvas, 72, y);
         }
 
         lv_obj_add_flag(image_canvas, LV_OBJ_FLAG_HIDDEN);
