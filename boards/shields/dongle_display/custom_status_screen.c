@@ -65,7 +65,7 @@ lv_obj_t *zmk_display_status_screen() {
 
     zmk_widget_timeout_status_init(&timeout_status_widget, screen);
     /* Temporary timeout feedback in the open band between output/profile and modifiers. */
-    lv_obj_align(zmk_widget_timeout_status_obj(&timeout_status_widget), LV_ALIGN_LEFT_MID, 30, 0);
+    lv_obj_align(zmk_widget_timeout_status_obj(&timeout_status_widget), LV_ALIGN_LEFT_MID, 0, 0);
 
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_WPM)
     zmk_widget_wpm_status_init(&wpm_status_widget, screen);
@@ -73,16 +73,14 @@ lv_obj_t *zmk_display_status_screen() {
 
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_BONGO_CAT)
     zmk_widget_bongo_cat_init(&bongo_cat_widget, screen);
-    lv_obj_align(zmk_widget_bongo_cat_obj(&bongo_cat_widget), LV_ALIGN_BOTTOM_RIGHT, 0, -9);
+    lv_obj_align(zmk_widget_bongo_cat_obj(&bongo_cat_widget), LV_ALIGN_BOTTOM_RIGHT, 0, 0);
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_WPM)
     /*
-     * Put the WPM value to the left of Bongo Cat instead of below it.
-     * This keeps the complete label inside the 64 px display and leaves the
-     * full width beneath the cat free for other status elements.
+     * BASE display modes share the same bottom-right visual slot:
+     * Cat -> bordered BASE text -> WPM.
      */
-    lv_obj_align_to(zmk_widget_wpm_status_obj(&wpm_status_widget),
-                    zmk_widget_bongo_cat_obj(&bongo_cat_widget),
-                    LV_ALIGN_OUT_LEFT_MID, -2, 1);
+    lv_obj_align(zmk_widget_wpm_status_obj(&wpm_status_widget),
+                 LV_ALIGN_BOTTOM_RIGHT, 0, 0);
 #endif
 #endif
 
@@ -101,7 +99,7 @@ lv_obj_t *zmk_display_status_screen() {
      * BASE uses Bongo Cat + WPM. Every other layer replaces that entire visual
      * region with one bold layer-name label.
      */
-    lv_obj_align(zmk_widget_layer_status_obj(&layer_status_widget), LV_ALIGN_BOTTOM_RIGHT, 0, -9);
+    lv_obj_align(zmk_widget_layer_status_obj(&layer_status_widget), LV_ALIGN_BOTTOM_RIGHT, 0, 0);
 #endif
 
 #if IS_ENABLED(CONFIG_ZMK_BATTERY)
