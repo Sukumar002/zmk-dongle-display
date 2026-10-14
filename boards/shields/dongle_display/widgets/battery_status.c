@@ -167,18 +167,27 @@ static void set_battery_symbol(lv_obj_t *widget, struct battery_state state) {
     lv_label_set_text_fmt(label, "%u%%", state.level);
 
     if (state.level > 0) {
-        lv_obj_clear_flag(symbol, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_move_foreground(symbol);
         lv_obj_clear_flag(label, LV_OBJ_FLAG_HIDDEN);
         lv_obj_move_foreground(label);
 
         if (state.charging && !full) {
+            /*
+             * Charging replaces the normal battery glyph with the breathing
+             * lightning glyph. The percentage remains visible beside it.
+             */
+            lv_obj_add_flag(symbol, LV_OBJ_FLAG_HIDDEN);
             lv_obj_clear_flag(charge_icon, LV_OBJ_FLAG_HIDDEN);
             lv_obj_move_foreground(charge_icon);
             start_charge_breathing(charge_icon);
         } else {
+            /*
+             * Normal and fully-charged states use the battery glyph.
+             * A full battery is drawn at 100%, with no charging flash.
+             */
             stop_charge_breathing(charge_icon);
             lv_obj_add_flag(charge_icon, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_clear_flag(symbol, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_move_foreground(symbol);
         }
     } else {
         stop_charge_breathing(charge_icon);
@@ -278,13 +287,13 @@ int zmk_widget_dongle_battery_status_init(struct zmk_widget_dongle_battery_statu
 
         if (SOURCE_OFFSET && i == 0) {
             lv_obj_align(image_canvas, LV_ALIGN_TOP_LEFT, 0, 4);
-            lv_obj_align_to(charge_canvas, image_canvas, LV_ALIGN_OUT_RIGHT_MID, 2, 0);
-            lv_obj_align_to(battery_label, charge_canvas, LV_ALIGN_OUT_RIGHT_MID, 2, 0);
+            lv_obj_align_to(charge_canvas, image_canvas, LV_ALIGN_CENTER, 0, 0);
+            lv_obj_align_to(battery_label, image_canvas, LV_ALIGN_OUT_RIGHT_MID, 2, 0);
         } else {
             int peripheral_index = i - SOURCE_OFFSET;
             lv_obj_align(image_canvas, LV_ALIGN_TOP_RIGHT, 0, peripheral_index * 10);
-            lv_obj_align_to(charge_canvas, image_canvas, LV_ALIGN_OUT_LEFT_MID, -2, 0);
-            lv_obj_align_to(battery_label, charge_canvas, LV_ALIGN_OUT_LEFT_MID, -1, 0);
+            lv_obj_align_to(charge_canvas, image_canvas, LV_ALIGN_CENTER, 0, 0);
+            lv_obj_align_to(battery_label, image_canvas, LV_ALIGN_OUT_LEFT_MID, -1, 0);
         }
 
         lv_obj_add_flag(image_canvas, LV_OBJ_FLAG_HIDDEN);
