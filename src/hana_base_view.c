@@ -9,19 +9,16 @@
 #include "../boards/shields/dongle_display/widgets/wpm_status.h"
 #include "../boards/shields/dongle_display/widgets/layer_status.h"
 
-static uint8_t base_view_mode = HANA_BASE_VIEW_CAT_WPM;
+static uint8_t base_view_mode = HANA_BASE_VIEW_CAT;
 
 enum hana_base_view_mode hana_base_view_get_mode(void) {
     return (enum hana_base_view_mode)base_view_mode;
 }
 
 static void apply_base_view(void) {
-    bool cat = base_view_mode == HANA_BASE_VIEW_CAT_WPM ||
-               base_view_mode == HANA_BASE_VIEW_CAT_ONLY;
-    bool text = base_view_mode == HANA_BASE_VIEW_TEXT_WPM ||
-                base_view_mode == HANA_BASE_VIEW_TEXT_ONLY;
-    bool wpm = base_view_mode == HANA_BASE_VIEW_CAT_WPM ||
-               base_view_mode == HANA_BASE_VIEW_TEXT_WPM;
+    bool cat = base_view_mode == HANA_BASE_VIEW_CAT;
+    bool text = base_view_mode == HANA_BASE_VIEW_TEXT;
+    bool wpm = base_view_mode == HANA_BASE_VIEW_WPM;
 
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_BONGO_CAT)
     zmk_widget_bongo_cat_set_base_enabled(cat);
@@ -46,7 +43,7 @@ void hana_base_view_cycle(void) {
     base_view_mode = (base_view_mode + 1) % HANA_BASE_VIEW_MODE_COUNT;
 
 #if IS_ENABLED(CONFIG_SETTINGS)
-    settings_save_one("hana_base_view/mode", &base_view_mode, sizeof(base_view_mode));
+    settings_save_one("hana_base_view/mode3", &base_view_mode, sizeof(base_view_mode));
 #endif
 
     apply_base_view();
@@ -55,7 +52,7 @@ void hana_base_view_cycle(void) {
 #if IS_ENABLED(CONFIG_SETTINGS)
 static int base_view_settings_set(const char *name, size_t len,
                                   settings_read_cb read_cb, void *cb_arg) {
-    if (strcmp(name, "mode") == 0) {
+    if (strcmp(name, "mode3") == 0) {
         uint8_t mode;
 
         if (len != sizeof(mode)) {
@@ -76,19 +73,56 @@ static int base_view_settings_set(const char *name, size_t len,
         return 0;
     }
 
-    if (strcmp(name, "cat") == 0) {
-        bool cat;
+    /*
+     * Migrate the previous four-state prototype:
+     * 0 Cat+WPM -> Cat
+     * 1 Text+WPM -> Text
+     * 2 Cat only -> Cat
+     * 3 Text only -> Text
+     */
+    if (strcmp(name, "mode") == 0) {
+        uint8_t old_mode;
 
-        if (len != sizeof(cat)) {
+        if (len != sizeof(old_mode)) {
             return -EINVAL;
         }
 
-        int rc = read_cb(cb_arg, &cat, sizeof(cat));
+        int rc = read_cb(cb_arg, &old_mode, sizeof(old_mode));
         if (rc < 0) {
             return rc;
         }
 
-        base_view_mode = cat ? HANA_BASE_VIEW_CAT_WPM : HANA_BASE_VIEW_TEXT_ONLY;
+        switch (old_mode) {
+        case 0:
+        case 2:
+            base_view_mode = HANA_BASE_VIEW_CAT;
+            break;
+        case 1:
+        case 3:
+            base_view_mode = HANA_BASE_VIEW_TEXT;
+            break;
+        default:
+            base_view_mode = HANA_BASE_VIEW_CAT;
+            break;
+        }
+
+        apply_base_view();
+        return 0;
+    }
+
+    if (strcmp(name, "cat") == 0) {
+        bool old_cat;
+
+        if (len != sizeof(old_cat)) {
+            return -EINVAL;
+        }
+
+        int rc = read_cb(cb_arg, &old_cat, sizeof(old_cat));
+        if (rc < 0) {
+            return rc;
+        }
+
+        base_view_mode = old_cat ? HANA_BASE_VIEW_CAT : HANA_BASE_VIEW_TEXT;
         apply_base_view();
         return 0;
     }
