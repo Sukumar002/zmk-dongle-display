@@ -23,12 +23,16 @@ static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
 static lv_color_t icon_buffers[1][ICON_BUF_SIZE];
 
 static void clear(lv_obj_t *canvas) {
-    lv_canvas_fill_bg(canvas, lv_color_black(), LV_OPA_TRANSP);
+    /*
+     * Match the normal white OLED background. Icons are drawn as black
+     * outlines instead of white/negative shapes inside a dark block.
+     */
+    lv_canvas_fill_bg(canvas, lv_color_white(), LV_OPA_COVER);
 }
 
 static void px(lv_obj_t *canvas, int x, int y) {
     if (x >= 0 && x < ICON_W && y >= 0 && y < ICON_H) {
-        lv_canvas_set_px(canvas, x, y, lv_color_white(), LV_OPA_COVER);
+        lv_canvas_set_px(canvas, x, y, lv_color_black(), LV_OPA_COVER);
     }
 }
 
@@ -113,42 +117,36 @@ static void draw_gear(lv_obj_t *c, uint8_t phase) {
 
     const int cx = 16, cy = 12;
 
-    /* central hub */
+    /* Hollow centre and compact outline ring. */
+    rect(c, cx - 5, cy - 5, 11, 11);
     rect(c, cx - 2, cy - 2, 5, 5);
-    px(c, cx, cy);
 
-    /* ring approximation */
-    hline(c, cx - 5, cx + 5, cy - 5);
-    hline(c, cx - 5, cx + 5, cy + 5);
-    vline(c, cx - 5, cy - 4, cy + 4);
-    vline(c, cx + 5, cy - 4, cy + 4);
+    /*
+     * Eight-frame tooth pattern. The body stays constant while the outer
+     * teeth advance around it, giving a clear rotating settings-gear effect.
+     */
+    static const int8_t teeth[8][8][2] = {
+        {{ 0,-8},{ 5,-6},{ 8, 0},{ 5, 6},{ 0, 8},{-5, 6},{-8, 0},{-5,-6}},
+        {{ 2,-8},{ 6,-5},{ 8, 2},{ 5, 6},{-2, 8},{-6, 5},{-8,-2},{-5,-6}},
+        {{ 4,-7},{ 7,-4},{ 7, 4},{ 4, 7},{-4, 7},{-7, 4},{-7,-4},{-4,-7}},
+        {{ 5,-6},{ 8,-2},{ 6, 5},{ 2, 8},{-5, 6},{-8, 2},{-6,-5},{-2,-8}},
+        {{ 0,-8},{ 6,-5},{ 8, 0},{ 6, 5},{ 0, 8},{-6, 5},{-8, 0},{-6,-5}},
+        {{-2,-8},{ 5,-6},{ 8,-2},{ 6, 5},{ 2, 8},{-5, 6},{-8, 2},{-6,-5}},
+        {{-4,-7},{ 4,-7},{ 7,-4},{ 7, 4},{ 4, 7},{-4, 7},{-7, 4},{-7,-4}},
+        {{-5,-6},{ 2,-8},{ 6,-5},{ 8, 2},{ 5, 6},{-2, 8},{-6, 5},{-8,-2}},
+    };
 
-    /* teeth rotate through four phases */
-    switch (phase & 3) {
-    case 0:
-        vline(c, cx, cy - 8, cy - 6);
-        vline(c, cx, cy + 6, cy + 8);
-        hline(c, cx - 8, cx - 6, cy);
-        hline(c, cx + 6, cx + 8, cy);
-        break;
-    case 1:
-        px(c, cx - 6, cy - 6); px(c, cx - 7, cy - 7);
-        px(c, cx + 6, cy - 6); px(c, cx + 7, cy - 7);
-        px(c, cx - 6, cy + 6); px(c, cx - 7, cy + 7);
-        px(c, cx + 6, cy + 6); px(c, cx + 7, cy + 7);
-        break;
-    case 2:
-        vline(c, cx - 3, cy - 8, cy - 6);
-        vline(c, cx + 3, cy + 6, cy + 8);
-        hline(c, cx - 8, cx - 6, cy + 3);
-        hline(c, cx + 6, cx + 8, cy - 3);
-        break;
-    default:
-        vline(c, cx + 3, cy - 8, cy - 6);
-        vline(c, cx - 3, cy + 6, cy + 8);
-        hline(c, cx - 8, cx - 6, cy - 3);
-        hline(c, cx + 6, cx + 8, cy + 3);
-        break;
+    uint8_t f = phase & 7;
+    for (int i = 0; i < 8; i++) {
+        int x = cx + teeth[f][i][0];
+        int y = cy + teeth[f][i][1];
+        px(c, x, y);
+
+        /* Give cardinal/near-cardinal teeth a second pixel for readability. */
+        if (teeth[f][i][0] == 0 || teeth[f][i][1] == 0) {
+            if (teeth[f][i][0] == 0) px(c, x + 1, y);
+            if (teeth[f][i][1] == 0) px(c, x, y + 1);
+        }
     }
 }
 
@@ -179,7 +177,7 @@ static void gear_timer_cb(lv_timer_t *timer) {
         return;
     }
 
-    widget->gear_phase = (widget->gear_phase + 1) & 3;
+    widget->gear_phase = (widget->gear_phase + 1) & 7;
     redraw(widget);
 }
 
@@ -202,7 +200,7 @@ static void set_layer_symbol(struct zmk_widget_layer_status *widget,
     if (state.index == 3) {
         widget->gear_phase = 0;
         redraw(widget);
-        lv_timer_set_period(widget->anim_timer, 180);
+        lv_timer_set_period(widget->anim_timer, 140);
         lv_timer_reset(widget->anim_timer);
         lv_timer_resume(widget->anim_timer);
     } else {
@@ -236,7 +234,7 @@ int zmk_widget_layer_status_init(struct zmk_widget_layer_status *widget, lv_obj_
     widget->gear_phase = 0;
     widget->layer = zmk_keymap_highest_layer_active();
 
-    widget->anim_timer = lv_timer_create(gear_timer_cb, 180, widget);
+    widget->anim_timer = lv_timer_create(gear_timer_cb, 140, widget);
     lv_timer_pause(widget->anim_timer);
 
     sys_slist_append(&widgets, &widget->node);
