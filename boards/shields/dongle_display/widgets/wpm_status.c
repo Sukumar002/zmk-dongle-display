@@ -12,6 +12,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include "wpm_status.h"
 
 static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
+static bool base_wpm_enabled = true;
 static int last_wpm = 0;
 static int64_t last_wpm_update_time = 0;
 
@@ -36,7 +37,7 @@ static void set_wpm(struct zmk_widget_wpm_status *widget,
      * in addition to the layer listener so a late WPM event cannot make the
      * widget visible on NUM/NAV/SET/MOUSE.
      */
-    if (zmk_keymap_highest_layer_active() != 0) {
+    if (zmk_keymap_highest_layer_active() != 0 || !base_wpm_enabled) {
         lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
         return;
     }
@@ -71,7 +72,7 @@ static int wpm_layer_listener(const zmk_event_t *eh) {
 
     struct zmk_widget_wpm_status *widget;
     SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
-        if (base) {
+        if (base && base_wpm_enabled) {
             char wpm_text[8];
             snprintf(wpm_text, sizeof(wpm_text), "%d", last_wpm);
             lv_label_set_text(widget->wpm_label, wpm_text);
@@ -102,7 +103,7 @@ int zmk_widget_wpm_status_init(struct zmk_widget_wpm_status *widget,
     lv_obj_align(widget->wpm_label, LV_ALIGN_CENTER, 0, 0);
     lv_label_set_text(widget->wpm_label, "0");
 
-    if (zmk_keymap_highest_layer_active() != 0) {
+    if (zmk_keymap_highest_layer_active() != 0 || !base_wpm_enabled) {
         lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
     }
 
@@ -110,6 +111,22 @@ int zmk_widget_wpm_status_init(struct zmk_widget_wpm_status *widget,
 
     widget_wpm_status_init();
     return 0;
+}
+
+void zmk_widget_wpm_set_base_enabled(bool enabled) {
+    base_wpm_enabled = enabled;
+
+    struct zmk_widget_wpm_status *widget;
+    SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
+        if (enabled && zmk_keymap_highest_layer_active() == 0) {
+            char wpm_text[8];
+            snprintf(wpm_text, sizeof(wpm_text), "%d", last_wpm);
+            lv_label_set_text(widget->wpm_label, wpm_text);
+            lv_obj_clear_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
 }
 
 lv_obj_t *zmk_widget_wpm_status_obj(struct zmk_widget_wpm_status *widget) {
