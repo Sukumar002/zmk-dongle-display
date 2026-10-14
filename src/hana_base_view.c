@@ -23,9 +23,23 @@ static void apply_base_view(void) {
     bool wpm = base_view_mode == HANA_BASE_VIEW_CAT_WPM ||
                base_view_mode == HANA_BASE_VIEW_TEXT_WPM;
 
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_BONGO_CAT)
     zmk_widget_bongo_cat_set_base_enabled(cat);
+#else
+    ARG_UNUSED(cat);
+#endif
+
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_WPM)
     zmk_widget_wpm_set_base_enabled(wpm);
+#else
+    ARG_UNUSED(wpm);
+#endif
+
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_LAYER)
     zmk_widget_layer_status_set_base_text_enabled(text);
+#else
+    ARG_UNUSED(text);
+#endif
 }
 
 void hana_base_view_cycle(void) {
