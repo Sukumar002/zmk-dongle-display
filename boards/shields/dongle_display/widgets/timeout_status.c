@@ -71,7 +71,7 @@ static void draw_usb_icon(lv_obj_t *canvas) {
 }
 
 static void hide_timer_cb(lv_timer_t *timer) {
-    struct zmk_widget_timeout_status *widget = timer->user_data;
+    struct zmk_widget_timeout_status *widget = lv_timer_get_user_data(timer);
     lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
     lv_timer_pause(timer);
 }
