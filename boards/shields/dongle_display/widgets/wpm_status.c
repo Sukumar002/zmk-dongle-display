@@ -23,7 +23,6 @@ static int64_t last_wpm_update_time = 0;
 struct wpm_status_state
 {
     int wpm;
-    const char *layer;
 };
 
 static struct wpm_status_state get_state(const zmk_event_t *_eh)
@@ -72,6 +71,30 @@ static void wpm_status_update_cb(struct wpm_status_state state)
         set_wpm(widget, state);
     }
 }
+
+static int wpm_layer_listener(const zmk_event_t *eh)
+{
+    ARG_UNUSED(eh);
+
+    const bool base = zmk_keymap_highest_layer_active() == 0;
+    struct zmk_widget_wpm_status *widget;
+    SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node)
+    {
+        if (base) {
+            char wpm_text[8];
+            snprintf(wpm_text, sizeof(wpm_text), "%i", last_wpm < 0 ? 0 : last_wpm);
+            lv_label_set_text(widget->wpm_label, wpm_text);
+            lv_obj_clear_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+
+    return ZMK_EV_EVENT_BUBBLE;
+}
+
+ZMK_LISTENER(widget_wpm_layer, wpm_layer_listener);
+ZMK_SUBSCRIPTION(widget_wpm_layer, zmk_layer_state_changed);
 
 ZMK_DISPLAY_WIDGET_LISTENER(widget_wpm_status, struct wpm_status_state,
                             wpm_status_update_cb, get_state)
