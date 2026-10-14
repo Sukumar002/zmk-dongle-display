@@ -8,6 +8,7 @@
 
 #include <lvgl.h>
 #include <zephyr/kernel.h>
+#include <stdbool.h>
 
 struct zmk_widget_wpm_status
 {
