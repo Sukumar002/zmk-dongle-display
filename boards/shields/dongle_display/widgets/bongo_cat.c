@@ -13,6 +13,8 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/display.h>
 #include <zmk/event_manager.h>
 #include <zmk/events/wpm_state_changed.h>
+#include <zmk/events/layer_state_changed.h>
+#include <zmk/keymap.h>
 #include <zmk/wpm.h>
 
 #include "bongo_cat.h"
@@ -20,6 +22,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #define SRC(array) (const void **)array, sizeof(array) / sizeof(lv_img_dsc_t *)
 
 static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
+static bool base_cat_enabled = true;
 static int64_t last_anim_update_time = 0;
 #define ANIM_UPDATE_INTERVAL_MS 200  // Throttle: max 5 animation checks per second
 
@@ -134,8 +137,40 @@ struct bongo_cat_wpm_status_state bongo_cat_wpm_status_get_state(const zmk_event
 
 void bongo_cat_wpm_status_update_cb(struct bongo_cat_wpm_status_state state) {
     struct zmk_widget_bongo_cat *widget;
-    SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) { set_animation(widget->obj, state); }
+    SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
+        if (zmk_keymap_highest_layer_active() == 0 && base_cat_enabled) {
+            lv_obj_clear_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
+            set_animation(widget->obj, state);
+        }
+    }
 }
+
+static int bongo_cat_layer_listener(const zmk_event_t *eh) {
+    ARG_UNUSED(eh);
+
+    const bool base = zmk_keymap_highest_layer_active() == 0;
+    struct zmk_widget_bongo_cat *widget;
+    SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
+        if (base && base_cat_enabled) {
+            current_anim_state = anim_state_none;
+            lv_obj_clear_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
+            set_animation(widget->obj, (struct bongo_cat_wpm_status_state){ .wpm = zmk_wpm_get_state() });
+        } else {
+            /*
+             * LVGL 9 does not expose lv_animimg_stop() in this build.
+             * Deleting animations attached to the animimg object stops the
+             * current Bongo Cat frame animation before hiding it.
+             */
+            lv_anim_del(widget->obj, NULL);
+            lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+
+    return ZMK_EV_EVENT_BUBBLE;
+}
+
+ZMK_LISTENER(widget_bongo_cat_layer, bongo_cat_layer_listener);
+ZMK_SUBSCRIPTION(widget_bongo_cat_layer, zmk_layer_state_changed);
 
 ZMK_DISPLAY_WIDGET_LISTENER(widget_bongo_cat, struct bongo_cat_wpm_status_state,
                             bongo_cat_wpm_status_update_cb, bongo_cat_wpm_status_get_state)
@@ -148,9 +183,30 @@ int zmk_widget_bongo_cat_init(struct zmk_widget_bongo_cat *widget, lv_obj_t *par
 
     sys_slist_append(&widgets, &widget->node);
 
+    if (!base_cat_enabled || zmk_keymap_highest_layer_active() != 0) {
+        lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
+    }
+
     widget_bongo_cat_init();
 
     return 0;
+}
+
+void zmk_widget_bongo_cat_set_base_enabled(bool enabled) {
+    base_cat_enabled = enabled;
+
+    struct zmk_widget_bongo_cat *widget;
+    SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
+        if (enabled && zmk_keymap_highest_layer_active() == 0) {
+            current_anim_state = anim_state_none;
+            lv_obj_clear_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
+            set_animation(widget->obj,
+                          (struct bongo_cat_wpm_status_state){ .wpm = zmk_wpm_get_state() });
+        } else {
+            lv_anim_del(widget->obj, NULL);
+            lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
 }
 
 lv_obj_t *zmk_widget_bongo_cat_obj(struct zmk_widget_bongo_cat *widget) {

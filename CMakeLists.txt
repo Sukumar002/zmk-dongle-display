@@ -1,3 +1,5 @@
+zephyr_include_directories(include)
+
 if(CONFIG_HANA_CHARGE_STATUS)
     zephyr_library()
 
