@@ -65,7 +65,7 @@ lv_obj_t *zmk_display_status_screen() {
     lv_obj_t *label = lv_label_create(screen);
     lv_obj_set_style_text_color(label, lv_color_white(), LV_PART_MAIN);
     lv_obj_set_style_text_font(label, &lv_font_unscii_8, LV_PART_MAIN);
-    lv_label_set_text(label, "OLED TEST\\n128x32 OK");
+        lv_label_set_text(label, "OLED TEST\n128x32 OK");
     lv_obj_center(label);
 
     return screen;
