@@ -181,3 +181,16 @@ int zmk_widget_timeout_status_init(struct zmk_widget_timeout_status *widget, lv_
 lv_obj_t *zmk_widget_timeout_status_obj(struct zmk_widget_timeout_status *widget) {
     return widget->obj;
 }
+
+void zmk_widget_timeout_status_show_keyboard_name(const char *name) {
+    if (active_widget == NULL || name == NULL) {
+        return;
+    }
+    draw_keyboard_icon(active_widget->icon);
+    lv_label_set_text(active_widget->label, name);
+    lv_obj_clear_flag(active_widget->obj, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(active_widget->obj);
+    lv_timer_set_period(active_widget->hide_timer, 2500);
+    lv_timer_reset(active_widget->hide_timer);
+    lv_timer_resume(active_widget->hide_timer);
+}
