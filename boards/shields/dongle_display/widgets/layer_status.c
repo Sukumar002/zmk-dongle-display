@@ -97,7 +97,7 @@ ZMK_SUBSCRIPTION(widget_layer_status, zmk_layer_state_changed);
 int zmk_widget_layer_status_init(struct zmk_widget_layer_status *widget,
                                  lv_obj_t *parent) {
     widget->obj = lv_obj_create(parent);
-    lv_obj_set_size(widget->obj, 50, 26);
+    lv_obj_set_size(widget->obj, 62, 26);
     lv_obj_set_style_bg_opa(widget->obj, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(widget->obj, 1, 0);
     lv_obj_set_style_border_color(widget->obj, lv_color_black(), 0);
@@ -107,8 +107,8 @@ int zmk_widget_layer_status_init(struct zmk_widget_layer_status *widget,
     widget->label = lv_label_create(widget->obj);
     widget->label_bold = lv_label_create(widget->obj);
 
-    lv_obj_set_width(widget->label, 48);
-    lv_obj_set_width(widget->label_bold, 48);
+    lv_obj_set_width(widget->label, 60);
+    lv_obj_set_width(widget->label_bold, 60);
     lv_obj_set_style_text_align(widget->label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_align(widget->label_bold, LV_TEXT_ALIGN_CENTER, 0);
 
