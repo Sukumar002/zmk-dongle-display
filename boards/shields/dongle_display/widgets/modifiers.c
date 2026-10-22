@@ -23,11 +23,12 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include "modifiers.h"
 
 /*
- * Layout-shift OS mode:
- *   map inactive = macOS semantics
- *   map active   = Windows semantics (GUI <-> Alt)
+ * Layout-shift OS mode for Sweep:
+ *   map inactive = Windows semantics (default)
+ *   map active   = macOS semantics (GUI <-> Alt)
  *
- * Fall back to the old WIN_BASE layer test if the custom map is absent.
+ * The Sweep keymap defines Windows as the default and toggles the map ON
+ * for Mac. Keep the display mode aligned with that behavior.
  */
 #define HANA_WIN_BASE_LAYER 1
 
@@ -43,12 +44,13 @@ struct hana_layout_shift_map_data_view {
 
 static bool hana_layout_shift_windows_mode(void) {
     if (!device_is_ready(hana_gui_alt_layout_shift)) {
-        return false;
+        /* Sweep's safe/default mode is Windows until the map is ready. */
+        return true;
     }
 
     const struct hana_layout_shift_map_data_view *data =
         hana_gui_alt_layout_shift->data;
-    return data->active;
+    return !data->active;
 }
 #else
 #define HANA_HAS_GUI_ALT_LAYOUT_SHIFT 0
