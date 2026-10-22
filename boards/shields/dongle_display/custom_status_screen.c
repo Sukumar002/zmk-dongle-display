@@ -13,6 +13,7 @@
 #include "widgets/hid_indicators.h"
 #include "widgets/wpm_status.h"
 #include "widgets/timeout_status.h"
+#include <zmk/universal_dongle_oled_status.h>
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
@@ -20,7 +21,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 static struct zmk_widget_output_status output_status_widget;
 static struct zmk_widget_timeout_status timeout_status_widget;
 
-#if IS_ENABLED(CONFIG_ZMK_BATTERY)
+#if IS_ENABLED(CONFIG_ZMK_BATTERY) && !IS_ENABLED(CONFIG_ZMK_UNIVERSAL_DONGLE_CENTRAL_IDENTITY)
 static struct zmk_widget_dongle_battery_status dongle_battery_status_widget;
 #endif
 
@@ -64,8 +65,11 @@ lv_obj_t *zmk_display_status_screen() {
     lv_obj_align(zmk_widget_output_status_obj(&output_status_widget), LV_ALIGN_TOP_LEFT, 0, 0);
 
     zmk_widget_timeout_status_init(&timeout_status_widget, screen);
-    /* Temporary timeout feedback in the open band between output/profile and modifiers. */
+    /* Temporary timeout feedback shares the center band with the active keyboard name. */
     lv_obj_align(zmk_widget_timeout_status_obj(&timeout_status_widget), LV_ALIGN_LEFT_MID, 0, 0);
+#if IS_ENABLED(CONFIG_ZMK_UNIVERSAL_DONGLE_CENTRAL_IDENTITY)
+    zmk_universal_oled_status_init(screen, zmk_widget_timeout_status_obj(&timeout_status_widget));
+#endif
 
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_WPM)
     zmk_widget_wpm_status_init(&wpm_status_widget, screen);
@@ -102,7 +106,7 @@ lv_obj_t *zmk_display_status_screen() {
     lv_obj_align(zmk_widget_layer_status_obj(&layer_status_widget), LV_ALIGN_BOTTOM_RIGHT, 0, 0);
 #endif
 
-#if IS_ENABLED(CONFIG_ZMK_BATTERY)
+#if IS_ENABLED(CONFIG_ZMK_BATTERY) && !IS_ENABLED(CONFIG_ZMK_UNIVERSAL_DONGLE_CENTRAL_IDENTITY)
     zmk_widget_dongle_battery_status_init(&dongle_battery_status_widget, screen);
     lv_obj_align(zmk_widget_dongle_battery_status_obj(&dongle_battery_status_widget), LV_ALIGN_TOP_RIGHT, 0, 0);
 #endif
