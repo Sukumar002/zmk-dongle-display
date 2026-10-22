@@ -3,6 +3,8 @@
  */
 
 #include <zephyr/kernel.h>
+#include <ctype.h>
+#include <string.h>
 #include <zmk/display.h>
 #include <zmk/event_manager.h>
 #include <zmk/events/runtime_timeout_changed.h>
@@ -10,7 +12,7 @@
 #include "timeout_status.h"
 
 #define ICON_W 12
-#define ICON_H 8
+#define ICON_H 14
 #define ICON_BUF_SIZE LV_CANVAS_BUF_SIZE(ICON_W, ICON_H, LV_COLOR_FORMAT_GET_BPP(LV_COLOR_FORMAT_L8), LV_DRAW_BUF_STRIDE_ALIGN)
 
 static lv_color_t icon_buf[ICON_BUF_SIZE];
@@ -27,58 +29,60 @@ static void px(lv_obj_t *canvas, int x, int y) {
 static void draw_keyboard_icon(lv_obj_t *canvas) {
     clear_icon(canvas);
 
+    /* 12x14 keyboard glyph: same visual height as the Bluetooth symbol. */
     for (int x = 0; x < 12; x++) {
         px(canvas, x, 0);
-        px(canvas, x, 7);
+        px(canvas, x, 13);
     }
-    for (int y = 1; y < 7; y++) {
+    for (int y = 1; y < 13; y++) {
         px(canvas, 0, y);
         px(canvas, 11, y);
     }
 
     for (int x = 2; x <= 9; x += 2) {
-        px(canvas, x, 2);
-        px(canvas, x, 4);
+        px(canvas, x, 3);
+        px(canvas, x, 6);
+        px(canvas, x, 9);
     }
     for (int x = 3; x <= 8; x++) {
-        px(canvas, x, 6);
+        px(canvas, x, 11);
     }
 }
 
 static void draw_usb_icon(lv_obj_t *canvas) {
     clear_icon(canvas);
 
-    /*
-     * Landscape USB plug, deliberately using the same 12x8 footprint as the
-     * keyboard icon so the two timeout indicators read as a matched pair.
-     *
-     * cable -> [==== USB plug ====]
-     */
-    px(canvas, 0, 3);
-    px(canvas, 1, 3);
-    px(canvas, 2, 3);
-    px(canvas, 2, 4);
-    px(canvas, 1, 4);
-    px(canvas, 0, 4);
-
-    for (int x = 3; x <= 9; x++) {
-        px(canvas, x, 1);
-        px(canvas, x, 6);
-    }
-    for (int y = 2; y <= 5; y++) {
-        px(canvas, 3, y);
-        px(canvas, 9, y);
-    }
-
-    /* USB-A tongue/contact suggestion at the connector end. */
-    px(canvas, 10, 2);
-    px(canvas, 11, 2);
-    px(canvas, 10, 5);
-    px(canvas, 11, 5);
-    px(canvas, 7, 3);
-    px(canvas, 8, 3);
+    /* A 12x14 portrait USB glyph, paired with the keyboard icon height. */
+    px(canvas, 5, 0);
+    px(canvas, 6, 0);
+    px(canvas, 5, 1);
+    px(canvas, 6, 1);
+    px(canvas, 5, 2);
+    px(canvas, 6, 2);
+    px(canvas, 5, 3);
+    px(canvas, 6, 3);
+    px(canvas, 4, 4);
+    px(canvas, 5, 4);
+    px(canvas, 6, 4);
     px(canvas, 7, 4);
-    px(canvas, 8, 4);
+    px(canvas, 5, 5);
+    px(canvas, 6, 5);
+    px(canvas, 5, 6);
+    px(canvas, 6, 6);
+    px(canvas, 5, 7);
+    px(canvas, 6, 7);
+    px(canvas, 5, 8);
+    px(canvas, 6, 8);
+    px(canvas, 5, 9);
+    px(canvas, 6, 9);
+    px(canvas, 5, 10);
+    px(canvas, 6, 10);
+    px(canvas, 5, 11);
+    px(canvas, 6, 11);
+    px(canvas, 5, 12);
+    px(canvas, 6, 12);
+    px(canvas, 5, 13);
+    px(canvas, 6, 13);
 }
 
 static void hide_timer_cb(lv_timer_t *timer) {
@@ -159,7 +163,7 @@ ZMK_SUBSCRIPTION(widget_timeout_status, zmk_runtime_timeout_changed);
 
 int zmk_widget_timeout_status_init(struct zmk_widget_timeout_status *widget, lv_obj_t *parent) {
     widget->obj = lv_obj_create(parent);
-    lv_obj_set_size(widget->obj, 58, 12);
+    lv_obj_set_size(widget->obj, 112, 14);
 
     widget->icon = lv_canvas_create(widget->obj);
     lv_canvas_set_buffer(widget->icon, icon_buf, ICON_W, ICON_H, LV_COLOR_FORMAT_L8);
@@ -186,10 +190,18 @@ void zmk_widget_timeout_status_show_keyboard_name(const char *name) {
     if (active_widget == NULL || name == NULL) {
         return;
     }
+
+    char uppercase_name[32];
+    size_t i = 0;
+    while (name[i] != '\0' && i < sizeof(uppercase_name) - 1) {
+        uppercase_name[i] = (char)toupper((unsigned char)name[i]);
+        i++;
+    }
+    uppercase_name[i] = '\0';
+
     draw_keyboard_icon(active_widget->icon);
-    lv_label_set_text(active_widget->label, name);
-    /* Use Montserrat 12, enabled in this LVGL configuration, for the active-board name. */
-    lv_obj_set_style_text_font(active_widget->label, &lv_font_montserrat_12, LV_PART_MAIN);
+    lv_label_set_text(active_widget->label, uppercase_name);
+    /* Inherit the screen's compact unscii_8 font to prevent long names clipping. */
     lv_obj_clear_flag(active_widget->obj, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(active_widget->obj);
     lv_timer_set_period(active_widget->hide_timer, 2500);
