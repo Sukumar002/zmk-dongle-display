@@ -188,8 +188,8 @@ void zmk_widget_timeout_status_show_keyboard_name(const char *name) {
     }
     draw_keyboard_icon(active_widget->icon);
     lv_label_set_text(active_widget->label, name);
-    /* Use the larger display font so the uppercase active-board name reads clearly. */
-    lv_obj_set_style_text_font(active_widget->label, &lv_font_montserrat_14, LV_PART_MAIN);
+    /* Use Montserrat 12, enabled in this LVGL configuration, for the active-board name. */
+    lv_obj_set_style_text_font(active_widget->label, &lv_font_montserrat_12, LV_PART_MAIN);
     lv_obj_clear_flag(active_widget->obj, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(active_widget->obj);
     lv_timer_set_period(active_widget->hide_timer, 2500);
