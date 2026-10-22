@@ -14,6 +14,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/keymap.h>
 
 #include "layer_status.h"
+#include <hana_base_view.h>
 
 static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
 static bool base_text_enabled;
@@ -38,7 +39,7 @@ static void set_layer_text(struct zmk_widget_layer_status *widget,
                            struct layer_status_state state) {
     widget->layer = state.index;
 
-    if (state.index == 0 && !base_text_enabled) {
+    if (hana_base_view_is_base_layer(state.index) && !base_text_enabled) {
         lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
         return;
     }
