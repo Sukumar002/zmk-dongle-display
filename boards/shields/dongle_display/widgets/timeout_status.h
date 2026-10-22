@@ -15,3 +15,4 @@ struct zmk_widget_timeout_status {
 
 int zmk_widget_timeout_status_init(struct zmk_widget_timeout_status *widget, lv_obj_t *parent);
 lv_obj_t *zmk_widget_timeout_status_obj(struct zmk_widget_timeout_status *widget);
+void zmk_widget_timeout_status_show_keyboard_name(const char *name);
