@@ -52,37 +52,35 @@ static void draw_keyboard_icon(lv_obj_t *canvas) {
 static void draw_usb_icon(lv_obj_t *canvas) {
     clear_icon(canvas);
 
-    /* A 12x14 portrait USB glyph, paired with the keyboard icon height. */
-    px(canvas, 5, 0);
-    px(canvas, 6, 0);
-    px(canvas, 5, 1);
-    px(canvas, 6, 1);
-    px(canvas, 5, 2);
-    px(canvas, 6, 2);
-    px(canvas, 5, 3);
-    px(canvas, 6, 3);
-    px(canvas, 4, 4);
-    px(canvas, 5, 4);
-    px(canvas, 6, 4);
-    px(canvas, 7, 4);
-    px(canvas, 5, 5);
-    px(canvas, 6, 5);
-    px(canvas, 5, 6);
-    px(canvas, 6, 6);
-    px(canvas, 5, 7);
-    px(canvas, 6, 7);
-    px(canvas, 5, 8);
-    px(canvas, 6, 8);
-    px(canvas, 5, 9);
-    px(canvas, 6, 9);
-    px(canvas, 5, 10);
-    px(canvas, 6, 10);
-    px(canvas, 5, 11);
-    px(canvas, 6, 11);
-    px(canvas, 5, 12);
-    px(canvas, 6, 12);
-    px(canvas, 5, 13);
-    px(canvas, 6, 13);
+    /*
+     * Keep the landscape USB plug at its original 12x8 visual size, vertically
+     * centred in the taller canvas used by the keyboard identity glyph.
+     */
+    px(canvas, 0, 6);
+    px(canvas, 1, 6);
+    px(canvas, 2, 6);
+    px(canvas, 2, 7);
+    px(canvas, 1, 7);
+    px(canvas, 0, 7);
+
+    for (int x = 3; x <= 9; x++) {
+        px(canvas, x, 4);
+        px(canvas, x, 9);
+    }
+    for (int y = 5; y <= 8; y++) {
+        px(canvas, 3, y);
+        px(canvas, 9, y);
+    }
+
+    /* USB-A tongue/contact suggestion at the connector end. */
+    px(canvas, 10, 5);
+    px(canvas, 11, 5);
+    px(canvas, 10, 8);
+    px(canvas, 11, 8);
+    px(canvas, 7, 6);
+    px(canvas, 8, 6);
+    px(canvas, 7, 7);
+    px(canvas, 8, 7);
 }
 
 static void hide_timer_cb(lv_timer_t *timer) {
