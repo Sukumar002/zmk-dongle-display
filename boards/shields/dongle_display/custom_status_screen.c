@@ -47,6 +47,22 @@ static struct zmk_widget_wpm_status wpm_status_widget;
 
 lv_style_t global_style;
 
+/*
+ * LVGL containers carry theme padding, borders and backgrounds by default.
+ * These widgets use explicit pixel coordinates sized for the 128x64 OLED;
+ * inherited container chrome shifts their children and causes clipping and
+ * collisions. Keep the parent transparent and geometry-neutral.
+ */
+static void normalize_widget_container(lv_obj_t *obj) {
+    lv_obj_set_style_bg_opa(obj, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(obj, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(obj, 0, LV_PART_MAIN);
+    lv_obj_set_style_outline_width(obj, 0, LV_PART_MAIN);
+    lv_obj_set_style_shadow_width(obj, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(obj, 0, LV_PART_MAIN);
+    lv_obj_set_scrollbar_mode(obj, LV_SCROLLBAR_MODE_OFF);
+}
+
 lv_obj_t *zmk_display_status_screen() {
     lv_obj_t *screen;
 
@@ -60,11 +76,13 @@ lv_obj_t *zmk_display_status_screen() {
     lv_style_set_text_letter_space(&global_style, 1);
     lv_style_set_text_line_space(&global_style, 1);
     lv_obj_add_style(screen, &global_style, LV_PART_MAIN);
-    
+
     zmk_widget_output_status_init(&output_status_widget, screen);
+    normalize_widget_container(zmk_widget_output_status_obj(&output_status_widget));
     lv_obj_align(zmk_widget_output_status_obj(&output_status_widget), LV_ALIGN_TOP_LEFT, 0, 0);
 
     zmk_widget_timeout_status_init(&timeout_status_widget, screen);
+    normalize_widget_container(zmk_widget_timeout_status_obj(&timeout_status_widget));
     /* Temporary timeout feedback shares the center band with the active keyboard name. */
     lv_obj_align(zmk_widget_timeout_status_obj(&timeout_status_widget), LV_ALIGN_LEFT_MID, 0, 0);
 #if IS_ENABLED(CONFIG_ZMK_UNIVERSAL_DONGLE_CENTRAL_IDENTITY)
@@ -90,6 +108,7 @@ lv_obj_t *zmk_display_status_screen() {
 
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_MODIFIERS)
     zmk_widget_modifiers_init(&modifiers_widget, screen);
+    normalize_widget_container(zmk_widget_modifiers_obj(&modifiers_widget));
     lv_obj_align(zmk_widget_modifiers_obj(&modifiers_widget), LV_ALIGN_BOTTOM_LEFT, 0, 0);
 #if IS_ENABLED(CONFIG_ZMK_HID_INDICATORS)
     zmk_widget_hid_indicators_init(&hid_indicators_widget, screen);
@@ -108,6 +127,7 @@ lv_obj_t *zmk_display_status_screen() {
 
 #if IS_ENABLED(CONFIG_ZMK_BATTERY) && !IS_ENABLED(CONFIG_ZMK_UNIVERSAL_DONGLE_CENTRAL_IDENTITY)
     zmk_widget_dongle_battery_status_init(&dongle_battery_status_widget, screen);
+    normalize_widget_container(zmk_widget_dongle_battery_status_obj(&dongle_battery_status_widget));
     lv_obj_align(zmk_widget_dongle_battery_status_obj(&dongle_battery_status_widget), LV_ALIGN_TOP_RIGHT, 0, 0);
 #endif
 
