@@ -3,6 +3,8 @@
  */
 
 #include <zephyr/kernel.h>
+#include <ctype.h>
+#include <string.h>
 #include <zmk/display.h>
 #include <zmk/event_manager.h>
 #include <zmk/events/runtime_timeout_changed.h>
@@ -48,12 +50,7 @@ static void draw_keyboard_icon(lv_obj_t *canvas) {
 static void draw_usb_icon(lv_obj_t *canvas) {
     clear_icon(canvas);
 
-    /*
-     * Landscape USB plug, deliberately using the same 12x8 footprint as the
-     * keyboard icon so the two timeout indicators read as a matched pair.
-     *
-     * cable -> [==== USB plug ====]
-     */
+    /* Landscape USB plug, sized to the original 12x8 timeout icon footprint. */
     px(canvas, 0, 3);
     px(canvas, 1, 3);
     px(canvas, 2, 3);
@@ -70,7 +67,6 @@ static void draw_usb_icon(lv_obj_t *canvas) {
         px(canvas, 9, y);
     }
 
-    /* USB-A tongue/contact suggestion at the connector end. */
     px(canvas, 10, 2);
     px(canvas, 11, 2);
     px(canvas, 10, 5);
@@ -131,6 +127,9 @@ static void timeout_status_update_cb(struct timeout_state state) {
         return;
     }
 
+    /* Runtime timeout feedback keeps its icon; board-name feedback is text-only. */
+    lv_obj_clear_flag(active_widget->icon, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_align_to(active_widget->label, active_widget->icon, LV_ALIGN_OUT_RIGHT_MID, 4, 0);
     if (state.kind == ZMK_RUNTIME_TIMEOUT_DISPLAY) {
         draw_usb_icon(active_widget->icon);
     } else {
@@ -159,7 +158,7 @@ ZMK_SUBSCRIPTION(widget_timeout_status, zmk_runtime_timeout_changed);
 
 int zmk_widget_timeout_status_init(struct zmk_widget_timeout_status *widget, lv_obj_t *parent) {
     widget->obj = lv_obj_create(parent);
-    lv_obj_set_size(widget->obj, 58, 12);
+    lv_obj_set_size(widget->obj, 112, 14);
 
     widget->icon = lv_canvas_create(widget->obj);
     lv_canvas_set_buffer(widget->icon, icon_buf, ICON_W, ICON_H, LV_COLOR_FORMAT_L8);
@@ -180,4 +179,29 @@ int zmk_widget_timeout_status_init(struct zmk_widget_timeout_status *widget, lv_
 
 lv_obj_t *zmk_widget_timeout_status_obj(struct zmk_widget_timeout_status *widget) {
     return widget->obj;
+}
+
+void zmk_widget_timeout_status_show_keyboard_name(const char *name) {
+    if (active_widget == NULL || name == NULL) {
+        return;
+    }
+
+    char uppercase_name[32];
+    size_t i = 0;
+    while (name[i] != '\0' && i < sizeof(uppercase_name) - 1) {
+        uppercase_name[i] = (char)toupper((unsigned char)name[i]);
+        i++;
+    }
+    uppercase_name[i] = '\0';
+
+    /* The board switch banner is just the uppercase name; no keyboard glyph. */
+    lv_obj_add_flag(active_widget->icon, LV_OBJ_FLAG_HIDDEN);
+    lv_label_set_text(active_widget->label, uppercase_name);
+    lv_obj_align(active_widget->label, LV_ALIGN_LEFT_MID, 0, 0);
+    /* Inherit the screen's compact unscii_8 font to prevent long names clipping. */
+    lv_obj_clear_flag(active_widget->obj, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(active_widget->obj);
+    lv_timer_set_period(active_widget->hide_timer, 2500);
+    lv_timer_reset(active_widget->hide_timer);
+    lv_timer_resume(active_widget->hide_timer);
 }
