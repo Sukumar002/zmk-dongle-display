@@ -10,6 +10,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
 static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
 static bool base_text_enabled;
+static bool overlay_active;
 
 struct layer_status_state { uint8_t index; const char *name; };
 
@@ -36,7 +37,7 @@ static void set_layer_text(struct zmk_widget_layer_status *widget,
     lv_label_set_text(widget->label, text);
     lv_label_set_text(widget->label_bold, text);
     lv_obj_clear_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_move_foreground(widget->obj);
+    if (!overlay_active) lv_obj_move_foreground(widget->obj);
 }
 
 static void refresh_all(void) {
@@ -50,12 +51,13 @@ void zmk_widget_layer_status_set_base_text_enabled(bool enabled) {
     base_text_enabled = enabled;
     refresh_all();
 }
+void zmk_widget_layer_status_set_overlay_active(bool active) { overlay_active = active; }
+void zmk_widget_layer_status_refresh(void) { refresh_all(); }
 
 static void layer_status_update_cb(struct layer_status_state state) {
     struct zmk_widget_layer_status *widget;
     SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) set_layer_text(widget, state);
 }
-
 static struct layer_status_state layer_status_get_state(const zmk_event_t *eh) {
     ARG_UNUSED(eh);
     uint8_t index = zmk_keymap_highest_layer_active();
@@ -103,5 +105,4 @@ int zmk_widget_layer_status_init(struct zmk_widget_layer_status *widget, lv_obj_
     widget_layer_status_init();
     return 0;
 }
-
 lv_obj_t *zmk_widget_layer_status_obj(struct zmk_widget_layer_status *widget) { return widget->obj; }

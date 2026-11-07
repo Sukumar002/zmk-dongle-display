@@ -11,9 +11,13 @@
 #include "widgets/hid_indicators.h"
 #include "widgets/wpm_status.h"
 #include "widgets/timeout_status.h"
+#include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <hana_base_view.h>
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
+
+#define LAYOUT_SHIFT_FLASH_MS 700
+#define LAYOUT_SHIFT_FLASH_REFRESH_MS 30
 
 static struct zmk_widget_output_status output_status_widget;
 static struct zmk_widget_timeout_status timeout_status_widget;
@@ -36,7 +40,91 @@ static struct zmk_widget_bongo_cat bongo_cat_widget;
 static struct zmk_widget_wpm_status wpm_status_widget;
 #endif
 static lv_obj_t *screen_root;
+static lv_obj_t *layout_shift_flash_obj;
+static lv_obj_t *layout_shift_flash_labels[4];
+static lv_timer_t *layout_shift_flash_timer;
+static int64_t layout_shift_flash_deadline;
 lv_style_t global_style;
+
+void zmk_display_compact_set_modifier_view(bool enabled);
+
+static void compact_layout_shift_flash_timer_cb(lv_timer_t *timer) {
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
+    if (k_uptime_get() < layout_shift_flash_deadline) {
+        if (layout_shift_flash_obj != NULL) lv_obj_move_foreground(layout_shift_flash_obj);
+        return;
+    }
+
+    lv_timer_pause(timer);
+    if (layout_shift_flash_obj != NULL) lv_obj_add_flag(layout_shift_flash_obj, LV_OBJ_FLAG_HIDDEN);
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_LAYER)
+    zmk_widget_layer_status_set_overlay_active(false);
+    zmk_widget_layer_status_refresh();
+#endif
+    zmk_display_compact_set_modifier_view(hana_base_view_is_compact_modifier_view());
+#else
+    ARG_UNUSED(timer);
+#endif
+}
+
+static void compact_layout_shift_flash_create(void) {
+    if (layout_shift_flash_obj != NULL || screen_root == NULL) return;
+
+    layout_shift_flash_obj = lv_obj_create(screen_root);
+    lv_obj_set_size(layout_shift_flash_obj, 128, 32);
+    lv_obj_set_style_bg_color(layout_shift_flash_obj, lv_color_white(), 0);
+    lv_obj_set_style_bg_opa(layout_shift_flash_obj, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(layout_shift_flash_obj, 0, 0);
+    lv_obj_set_style_pad_all(layout_shift_flash_obj, 0, 0);
+
+    for (int i = 0; i < 4; i++) {
+        lv_obj_t *cell = lv_obj_create(layout_shift_flash_obj);
+        lv_obj_set_size(cell, 31, 32);
+        lv_obj_set_style_radius(cell, 0, 0);
+        lv_obj_set_style_border_width(cell, 1, 0);
+        lv_obj_set_style_border_color(cell, lv_color_white(), 0);
+        lv_obj_set_style_bg_color(cell, lv_color_black(), 0);
+        lv_obj_set_style_bg_opa(cell, LV_OPA_COVER, 0);
+        lv_obj_set_style_pad_all(cell, 0, 0);
+        lv_obj_set_pos(cell, i * 32, 0);
+
+        layout_shift_flash_labels[i] = lv_label_create(cell);
+        lv_obj_center(layout_shift_flash_labels[i]);
+        lv_obj_set_style_text_color(layout_shift_flash_labels[i], lv_color_white(), 0);
+    }
+    lv_obj_add_flag(layout_shift_flash_obj, LV_OBJ_FLAG_HIDDEN);
+}
+
+void hana_base_view_flash_layout_shift(bool windows_mode) {
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
+    if (screen_root == NULL) return;
+
+    compact_layout_shift_flash_create();
+    static const char *const mac_names[4] = { "CTRL", "OPT", "CMD", "SHIFT" };
+    static const char *const windows_names[4] = { "CTRL", "WIN", "ALT", "SHIFT" };
+    const char *const *names = windows_mode ? windows_names : mac_names;
+    for (int i = 0; i < 4; i++) lv_label_set_text(layout_shift_flash_labels[i], names[i]);
+
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_LAYER)
+    zmk_widget_layer_status_set_overlay_active(true);
+#endif
+    lv_obj_clear_flag(layout_shift_flash_obj, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(layout_shift_flash_obj);
+    layout_shift_flash_deadline = k_uptime_get() + LAYOUT_SHIFT_FLASH_MS;
+
+    if (layout_shift_flash_timer == NULL) {
+        layout_shift_flash_timer =
+            lv_timer_create(compact_layout_shift_flash_timer_cb,
+                            LAYOUT_SHIFT_FLASH_REFRESH_MS, NULL);
+        lv_timer_pause(layout_shift_flash_timer);
+    }
+    lv_timer_set_period(layout_shift_flash_timer, LAYOUT_SHIFT_FLASH_REFRESH_MS);
+    lv_timer_reset(layout_shift_flash_timer);
+    lv_timer_resume(layout_shift_flash_timer);
+#else
+    ARG_UNUSED(windows_mode);
+#endif
+}
 
 void zmk_display_compact_set_modifier_view(bool enabled) {
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
