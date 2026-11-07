@@ -7,3 +7,11 @@ config HANA_CHARGE_STATUS
       Enables charging-state detection and transport for Hana peripherals.
 
 endmenu
+
+config ZMK_DONGLE_DISPLAY_BASE_LAYER_COUNT
+    int "Number of base layers"
+    range 1 16
+    default 2
+    help
+      Number of initial keymap layers treated as base layers by the dongle
+      display. Hana and Chocofi use two; other shields can override this.
