@@ -2,12 +2,14 @@ manifest:
   remotes:
     - name: zmkfirmware
       url-base: https://github.com/zmkfirmware
+    - name: sukumar
+      url-base: https://github.com/Sukumar002
     - name: englmaxi
       url-base: https://github.com/englmaxi
   projects:
     - name: zmk
-      remote: zmkfirmware
-      revision: main
+      remote: sukumar
+      revision: project/universal-dongle-oled-status
       import: app/west.yml
     - name: zmk-config
       remote: englmaxi
