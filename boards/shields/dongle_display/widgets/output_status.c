@@ -224,7 +224,7 @@ int zmk_widget_output_status_init(struct zmk_widget_output_status *widget, lv_ob
      */
     lv_obj_set_size(widget->obj, 18, 32);
     lv_obj_set_pos(usb, 0, 0);
-    lv_obj_set_pos(usb_hid_status, 2, 7);
+    lv_obj_set_pos(usb_hid_status, 2, 2);
     lv_obj_set_pos(bt, 0, 18);
     lv_obj_set_pos(bt_number, 11, 25);
     lv_obj_set_pos(bt_status, 11, 19);
