@@ -206,6 +206,9 @@ void zmk_display_compact_set_modifier_view(bool enabled) {
 lv_obj_t *zmk_display_status_screen() {
     screen_root = lv_obj_create(NULL);
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
+    /* The theme can assign a flex/grid layout to screen objects. Positional
+     * child coordinates are ignored while a layout engine is active. */
+    lv_obj_set_layout(screen_root, LV_LAYOUT_NONE);
     /* A screen root created with lv_obj_create inherits theme padding and
      * border. That insets every aligned widget (and clips the 128x32 layout).
      * Compact mode uses the physical panel bounds as its coordinate origin. */
