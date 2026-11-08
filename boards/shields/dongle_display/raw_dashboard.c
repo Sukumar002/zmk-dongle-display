@@ -183,29 +183,29 @@ static void draw_battery_icon(int x, int y, uint8_t level)
 
 static void draw_battery_row(int y, char side, uint8_t level)
 {
-    char label[8];
-    if (level == 0xff) {
-        /* Unknown level: keep the side label and placeholder right-aligned. */
-        label[0] = side; label[1] = ' '; label[2] = '-'; label[3] = '-';
-        label[4] = 0;
-    } else {
-        unsigned int value = MIN(level, 100);
-        /* No percent sign. A single space separates side and percentage. */
+    /* Reserve a fixed four-character field:
+     *   0..99  -> "L 99" (two digits, with the leading position blank)
+     *   100    -> "L100" (the blank position is filled by the third digit)
+     * Unknown -> "L --"
+     * This keeps both labels right-aligned and leaves one character-cell
+     * between the value and the battery icon. */
+    char label[5] = { side, ' ', '-', '-', 0 };
+
+    if (level != 0xff) {
+        const unsigned int value = MIN(level, 100);
         if (value >= 100) {
-            label[0] = side; label[1] = ' '; label[2] = '1';
-            label[3] = '0'; label[4] = '0'; label[5] = 0;
+            label[1] = '1';
+            label[2] = '0';
+            label[3] = '0';
         } else {
-            label[0] = side; label[1] = ' ';
             label[2] = '0' + (value / 10);
-            label[3] = '0' + (value % 10); label[4] = 0;
+            label[3] = '0' + (value % 10);
         }
     }
 
-    /* Right-align the text with exactly one character cell before the icon.
-     * Shorter values naturally move L/R one cell to the right. */
-    const int text_width = (strlen(label) - 1) * 6 + 5;
-    const int text_x = 102 - text_width;
-    draw_text(label, text_x, y + 1);
+    /* Four glyphs occupy 23 pixels (5px glyph + 1px advance each).
+     * End the final glyph six pixels before the battery outline. */
+    draw_text(label, 79, y + 1);
     draw_battery_icon(108, y, level);
 }
 
