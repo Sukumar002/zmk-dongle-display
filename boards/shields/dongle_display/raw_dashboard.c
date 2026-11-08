@@ -1,8 +1,9 @@
 /*
  * SPDX-License-Identifier: MIT
  *
- * Minimal 128x32 SSD1306 baseline. This deliberately bypasses LVGL so the
- * Zephyr display driver's native monochrome framebuffer path can be verified.
+ * Full-panel diagnostic for the Hana 128x32 SSD1306.
+ * Uses Zephyr's native MONO01, vertically tiled display buffer format.
+ * No LVGL and no ZMK status widgets are involved.
  */
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
@@ -11,120 +12,129 @@
 #include <zephyr/logging/log.h>
 #include <string.h>
 
-LOG_MODULE_REGISTER(hana_raw_dashboard, LOG_LEVEL_INF);
+LOG_MODULE_REGISTER(hana_oled_fullscreen_test, LOG_LEVEL_INF);
 
 #define OLED_W 128
 #define OLED_H 32
 #define FB_SIZE (OLED_W * OLED_H / 8)
 
-static const struct device *display = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
+static const struct device *const display = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
 static uint8_t framebuffer[FB_SIZE];
 
-/* 5x7 row-major glyphs. Bit 0 is the left-most pixel. */
-static const uint8_t glyphs[][7] = {
-    [0] = {0x1f,0x11,0x11,0x11,0x11,0x11,0x1f}, /* 0 */
-    [1] = {0x04,0x0c,0x04,0x04,0x04,0x04,0x0e},
-    [2] = {0x1e,0x01,0x01,0x1e,0x10,0x10,0x1f},
-    [3] = {0x1e,0x01,0x01,0x0e,0x01,0x01,0x1e},
-    [4] = {0x12,0x12,0x12,0x1f,0x02,0x02,0x02},
-    [5] = {0x1f,0x10,0x10,0x1e,0x01,0x01,0x1e},
-    [6] = {0x0f,0x10,0x10,0x1e,0x11,0x11,0x0e},
-    [7] = {0x1f,0x01,0x02,0x04,0x08,0x08,0x08},
-    [8] = {0x0e,0x11,0x11,0x0e,0x11,0x11,0x0e},
-    [9] = {0x0e,0x11,0x11,0x0f,0x01,0x01,0x1e},
-    [10] = {0x0e,0x11,0x11,0x1f,0x11,0x11,0x11}, /* A */
-    [11] = {0x1e,0x11,0x11,0x1e,0x11,0x11,0x1e}, /* B */
-    [12] = {0x0f,0x10,0x10,0x10,0x10,0x10,0x0f}, /* C */
-    [13] = {0x1e,0x11,0x11,0x11,0x11,0x11,0x1e}, /* D */
-    [14] = {0x1f,0x10,0x10,0x1e,0x10,0x10,0x1f}, /* E */
-    [15] = {0x1f,0x10,0x10,0x1e,0x10,0x10,0x10}, /* F */
-    [16] = {0x0f,0x10,0x10,0x13,0x11,0x11,0x0f}, /* G */
-    [17] = {0x11,0x11,0x11,0x1f,0x11,0x11,0x11}, /* H */
-    [18] = {0x0e,0x04,0x04,0x04,0x04,0x04,0x0e}, /* I */
-    [19] = {0x07,0x02,0x02,0x02,0x12,0x12,0x0c}, /* J */
-    [20] = {0x11,0x12,0x14,0x18,0x14,0x12,0x11}, /* K */
-    [21] = {0x10,0x10,0x10,0x10,0x10,0x10,0x1f}, /* L */
-    [22] = {0x11,0x1b,0x15,0x15,0x11,0x11,0x11}, /* M */
-    [23] = {0x11,0x19,0x15,0x13,0x11,0x11,0x11}, /* N */
-    [24] = {0x0e,0x11,0x11,0x11,0x11,0x11,0x0e}, /* O */
-    [25] = {0x1e,0x11,0x11,0x1e,0x10,0x10,0x10}, /* P */
-    [26] = {0x1e,0x11,0x11,0x1e,0x14,0x12,0x11}, /* R */
-    [27] = {0x0f,0x10,0x10,0x0e,0x01,0x01,0x1e}, /* S */
-    [28] = {0x1f,0x04,0x04,0x04,0x04,0x04,0x04}, /* T */
-    [29] = {0x11,0x11,0x11,0x11,0x11,0x11,0x0e}, /* U */
-};
-
-static void put_pixel(int x, int y, bool on)
+static void pixel(int x, int y)
 {
     if (x < 0 || x >= OLED_W || y < 0 || y >= OLED_H) return;
-    const size_t index = (size_t)(y / 8) * OLED_W + x;
-    const uint8_t mask = BIT(y & 7);
-    if (on) framebuffer[index] |= mask;
-    else framebuffer[index] &= (uint8_t)~mask;
+    /* SSD1306 Zephyr driver advertises SCREEN_INFO_MONO_VTILED:
+     * each byte contains eight vertical pixels, least-significant first.
+     */
+    framebuffer[(y / 8) * OLED_W + x] |= BIT(y & 7);
 }
 
-static void draw_char(char c, int x, int y)
+static void line(int x0, int y0, int x1, int y1)
 {
-    int glyph = -1;
-    if (c >= '0' && c <= '9') glyph = c - '0';
-    else {
-        switch (c) {
-        case 'A': glyph=10; break; case 'B': glyph=11; break;
-        case 'C': glyph=12; break; case 'D': glyph=13; break;
-        case 'E': glyph=14; break; case 'F': glyph=15; break;
-        case 'G': glyph=16; break; case 'H': glyph=17; break;
-        case 'I': glyph=18; break; case 'J': glyph=19; break;
-        case 'K': glyph=20; break; case 'L': glyph=21; break;
-        case 'M': glyph=22; break; case 'N': glyph=23; break;
-        case 'O': glyph=24; break; case 'P': glyph=25; break;
-        case 'R': glyph=26; break; case 'S': glyph=27; break;
-        case 'T': glyph=28; break; case 'U': glyph=29; break;
-        case '-': for (int i=0;i<5;i++) put_pixel(x+i,y+3,true); return;
-        case '+': for (int i=0;i<5;i++) { put_pixel(x+i,y+3,true); put_pixel(x+2,y+1,true); put_pixel(x+2,y+5,true); } return;
-        case '%':
-            put_pixel(x+1,y+1,true); put_pixel(x+2,y+1,true);
-            put_pixel(x+1,y+2,true); put_pixel(x+2,y+2,true);
-            put_pixel(x+3,y+4,true); put_pixel(x+3,y+5,true);
-            put_pixel(x+4,y+4,true); put_pixel(x+4,y+5,true);
-            put_pixel(x+1,y+6,true); put_pixel(x+4,y,true); return;
-        default: return;
-        }
+    int dx = ABS(x1 - x0), sx = x0 < x1 ? 1 : -1;
+    int dy = -ABS(y1 - y0), sy = y0 < y1 ? 1 : -1;
+    int err = dx + dy;
+
+    while (1) {
+        pixel(x0, y0);
+        if (x0 == x1 && y0 == y1) break;
+        int e2 = 2 * err;
+        if (e2 >= dy) { err += dy; x0 += sx; }
+        if (e2 <= dx) { err += dx; y0 += sy; }
     }
-    for (int row=0; row<7; row++)
-        for (int col=0; col<5; col++)
-            if (glyphs[glyph][row] & BIT(col)) put_pixel(x+col,y+row,true);
 }
 
-static void draw_text(const char *s, int x, int y)
+/* Five-column, seven-row glyphs for the diagnostic label. */
+static const uint8_t font[][5] = {
+    [0] = {0x3e,0x51,0x49,0x45,0x3e}, /* 0 */
+    [1] = {0x00,0x42,0x7f,0x40,0x00}, /* 1 */
+    [2] = {0x42,0x61,0x51,0x49,0x46}, /* 2 */
+    [3] = {0x21,0x41,0x45,0x4b,0x31}, /* 3 */
+    [10] = {0x7e,0x11,0x11,0x11,0x7e}, /* A */
+    [11] = {0x7f,0x49,0x49,0x49,0x36}, /* B */
+    [12] = {0x3e,0x41,0x41,0x41,0x22}, /* C */
+    [13] = {0x7f,0x41,0x41,0x22,0x1c}, /* D */
+    [14] = {0x7f,0x49,0x49,0x49,0x41}, /* E */
+    [15] = {0x7f,0x09,0x09,0x09,0x01}, /* F */
+    [16] = {0x3e,0x41,0x49,0x49,0x7a}, /* G */
+    [17] = {0x7f,0x08,0x08,0x08,0x7f}, /* H */
+    [18] = {0x00,0x41,0x7f,0x41,0x00}, /* I */
+    [19] = {0x20,0x40,0x41,0x3f,0x01}, /* J */
+    [20] = {0x7f,0x08,0x14,0x22,0x41}, /* K */
+    [21] = {0x7f,0x40,0x40,0x40,0x40}, /* L */
+    [22] = {0x7f,0x02,0x0c,0x02,0x7f}, /* M */
+    [23] = {0x7f,0x04,0x08,0x10,0x7f}, /* N */
+    [24] = {0x3e,0x41,0x41,0x41,0x3e}, /* O */
+    [25] = {0x7f,0x09,0x09,0x09,0x06}, /* P */
+    [26] = {0x7f,0x09,0x19,0x29,0x46}, /* R */
+    [27] = {0x46,0x49,0x49,0x49,0x31}, /* S */
+    [28] = {0x01,0x01,0x7f,0x01,0x01}, /* T */
+    [29] = {0x3f,0x40,0x40,0x40,0x3f}, /* U */
+    [30] = {0x1f,0x20,0x40,0x20,0x1f}, /* V */
+    [31] = {0x63,0x14,0x08,0x14,0x63}, /* X */
+};
+
+static int glyph_index(char c)
+{
+    if (c >= '0' && c <= '3') return c - '0';
+    switch (c) {
+    case 'A': return 10; case 'B': return 11; case 'C': return 12;
+    case 'D': return 13; case 'E': return 14; case 'F': return 15;
+    case 'G': return 16; case 'H': return 17; case 'I': return 18;
+    case 'J': return 19; case 'K': return 20; case 'L': return 21;
+    case 'M': return 22; case 'N': return 23; case 'O': return 24;
+    case 'P': return 25; case 'R': return 26; case 'S': return 27;
+    case 'T': return 28; case 'U': return 29; case 'V': return 30;
+    case 'X': return 31;
+    default: return -1;
+    }
+}
+
+static void text(const char *s, int x, int y)
 {
     while (*s) {
-        if (*s != ' ') draw_char(*s, x, y);
+        int g = glyph_index(*s++);
+        if (g >= 0) {
+            for (int col = 0; col < 5; col++)
+                for (int row = 0; row < 7; row++)
+                    if (font[g][col] & BIT(row)) pixel(x + col, y + row);
+        }
         x += 6;
-        s++;
     }
 }
 
-static void draw_battery(int x, int y, uint8_t percent)
+static int draw_fullscreen_test(void)
 {
-    /* 7x10 outline with a one-pixel terminal. */
-    for (int xx=0; xx<6; xx++) {
-        put_pixel(x+xx,y,true);
-        put_pixel(x+xx,y+9,true);
-    }
-    for (int yy=0; yy<10; yy++) {
-        put_pixel(x,y+yy,true);
-        put_pixel(x+5,y+yy,true);
-    }
-    put_pixel(x+2,y-1,true); put_pixel(x+3,y-1,true);
-    int fill = (percent > 100 ? 100 : percent) * 6 / 100;
-    for (int yy=0; yy<fill; yy++)
-        for (int xx=0; xx<3; xx++)
-            put_pixel(x+2+xx,y+8-yy,true);
-}
+    memset(framebuffer, 0, sizeof(framebuffer));
 
-static int flush_frame(void)
-{
-    struct display_buffer_descriptor desc = {
+    /* Full perimeter, corner blocks, centre axes and diagonals. */
+    line(0, 0, 127, 0);
+    line(0, 31, 127, 31);
+    line(0, 0, 0, 31);
+    line(127, 0, 127, 31);
+
+    for (int y = 2; y < 7; y++)
+        for (int x = 2; x < 7; x++) pixel(x, y);
+    for (int y = 2; y < 7; y++)
+        for (int x = 121; x < 126; x++) pixel(x, y);
+    for (int y = 25; y < 30; y++)
+        for (int x = 2; x < 7; x++) pixel(x, y);
+    for (int y = 25; y < 30; y++)
+        for (int x = 121; x < 126; x++) pixel(x, y);
+
+    line(8, 8, 119, 23);
+    line(8, 23, 119, 8);
+    line(64, 1, 64, 30);
+    line(1, 15, 126, 15);
+
+    /* Clear a central label window, then draw legible 5x7 text. */
+    for (int y = 10; y <= 21; y++)
+        for (int x = 31; x <= 96; x++)
+            framebuffer[(y / 8) * OLED_W + x] &= (uint8_t)~BIT(y & 7);
+    text("128X32", 46, 12);
+
+    const struct display_buffer_descriptor desc = {
         .buf_size = sizeof(framebuffer),
         .width = OLED_W,
         .height = OLED_H,
@@ -133,58 +143,41 @@ static int flush_frame(void)
     return display_write(display, 0, 0, &desc, framebuffer);
 }
 
-static void render_baseline(void)
-{
-    memset(framebuffer, 0, sizeof(framebuffer));
-
-    /* Connection indicators: top-left USB, bottom-left Bluetooth. */
-    draw_text("USB", 1, 2);
-    draw_text("+", 22, 2);
-    draw_text("BT 1", 1, 22);
-    draw_text("-", 31, 22);
-
-    /* Two split-half battery rows, stacked at the far right. */
-    draw_text("L --%", 76, 1);
-    draw_battery(119, 4, 0);
-    draw_text("R --%", 76, 17);
-    draw_battery(119, 20, 0);
-
-    int err = flush_frame();
-    if (err) LOG_ERR("SSD1306 frame write failed: %d", err);
-}
-
-static int hana_raw_dashboard_init(void)
+static int hana_oled_fullscreen_test_init(void)
 {
     if (!device_is_ready(display)) {
-        LOG_ERR("Chosen SSD1306 display device is not ready");
+        LOG_ERR("Chosen OLED display device is not ready");
         return -ENODEV;
     }
 
     struct display_capabilities caps;
     display_get_capabilities(display, &caps);
-    LOG_INF("Raw dashboard display: %ux%u formats=0x%x screen_info=0x%x",
+    LOG_INF("OLED diagnostic: %ux%u formats=0x%x screen_info=0x%x",
             caps.x_resolution, caps.y_resolution,
             caps.supported_pixel_formats, caps.screen_info);
 
     if (caps.x_resolution != OLED_W || caps.y_resolution != OLED_H) {
-        LOG_ERR("Raw dashboard requires a 128x32 display");
+        LOG_ERR("Expected 128x32 panel; refusing to draw");
         return -EINVAL;
     }
-    if (!(caps.supported_pixel_formats & PIXEL_FORMAT_MONO01)) {
-        LOG_ERR("SSD1306 driver does not support MONO01");
+    if (!(caps.screen_info & SCREEN_INFO_MONO_VTILED) ||
+        !(caps.supported_pixel_formats & PIXEL_FORMAT_MONO01)) {
+        LOG_ERR("Unexpected SSD1306 buffer format");
         return -ENOTSUP;
     }
 
     int err = display_set_pixel_format(display, PIXEL_FORMAT_MONO01);
     if (err) {
-        LOG_ERR("Unable to select MONO01 framebuffer: %d", err);
+        LOG_ERR("Could not select MONO01: %d", err);
         return err;
     }
     err = display_blanking_off(display);
-    if (err) LOG_WRN("Display blanking-off returned %d", err);
+    if (err) LOG_WRN("display_blanking_off: %d", err);
 
-    render_baseline();
-    return 0;
+    err = draw_fullscreen_test();
+    if (err) LOG_ERR("Full-screen display_write failed: %d", err);
+    else LOG_INF("Full-screen 128x32 diagnostic frame written");
+    return err;
 }
 
-SYS_INIT(hana_raw_dashboard_init, APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY);
+SYS_INIT(hana_oled_fullscreen_test_init, APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY);
