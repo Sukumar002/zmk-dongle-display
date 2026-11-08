@@ -21,6 +21,8 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/usb.h>
 
 #include "battery_status.h"
+#include "../compact_renderer.h"
+#include "../compact_renderer.h"
 
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_DONGLE_BATTERY)
     #define SOURCE_OFFSET 1
@@ -44,6 +46,7 @@ struct battery_state {
     bool present;
 };
 
+#if !IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
 struct battery_object {
     lv_obj_t *symbol;
     lv_obj_t *label;
@@ -53,8 +56,6 @@ struct battery_object {
 static lv_color_t battery_image_buffer[ZMK_SPLIT_BLE_PERIPHERAL_COUNT + SOURCE_OFFSET][BUFFER_SIZE];
 static lv_color_t charge_image_buffer[ZMK_SPLIT_BLE_PERIPHERAL_COUNT + SOURCE_OFFSET][BUFFER_SIZE];
 
-static uint8_t cached_levels[ZMK_SPLIT_BLE_PERIPHERAL_COUNT + SOURCE_OFFSET];
-static bool cached_charging[ZMK_SPLIT_BLE_PERIPHERAL_COUNT + SOURCE_OFFSET];
 
 /*
  * The nice!nano V2 battery source is VDDH, which also sees USB power.
@@ -63,6 +64,9 @@ static bool cached_charging[ZMK_SPLIT_BLE_PERIPHERAL_COUNT + SOURCE_OFFSET];
  * dongle has actually run without USB power; a USB-only dongle can never do
  * that, so its phantom battery stays hidden.
  */
+#endif
+static uint8_t cached_levels[ZMK_SPLIT_BLE_PERIPHERAL_COUNT + SOURCE_OFFSET];
+static bool cached_charging[ZMK_SPLIT_BLE_PERIPHERAL_COUNT + SOURCE_OFFSET];
 static bool dongle_battery_seen;
 
 #if IS_ENABLED(CONFIG_SETTINGS)
@@ -91,6 +95,7 @@ static void remember_dongle_battery_present(void) {
 #endif
 }
 
+#if !IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
 static void draw_battery(lv_obj_t *canvas, uint8_t level, bool usb_present) {
     lv_canvas_fill_bg(canvas, lv_color_black(), LV_OPA_COVER);
     
@@ -172,18 +177,25 @@ static void stop_charge_breathing(lv_obj_t *icon) {
     lv_obj_set_style_opa(icon, LV_OPA_COVER, LV_PART_MAIN);
 }
 
+#endif
 static void set_battery_symbol(lv_obj_t *widget, struct battery_state state) {
     if (state.source >= ZMK_SPLIT_BLE_PERIPHERAL_COUNT + SOURCE_OFFSET) {
         return;
     }
 
     LOG_DBG("source: %d, level: %d, usb: %d", state.source, state.level, state.usb_present);
+    cached_levels[state.source] = state.level;
+    cached_charging[state.source] = state.charging;
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
+    if (!(SOURCE_OFFSET && state.source == 0)) {
+        zmk_compact_renderer_set_battery(state.source - SOURCE_OFFSET, state.level,
+                                         state.charging, state.present);
+    }
+    return;
+#else
     lv_obj_t *symbol = battery_objects[state.source].symbol;
     lv_obj_t *label = battery_objects[state.source].label;
     lv_obj_t *charge_icon = battery_objects[state.source].charge_icon;
-
-    cached_levels[state.source] = state.level;
-    cached_charging[state.source] = state.charging;
 
     const bool is_dongle = SOURCE_OFFSET && state.source == 0;
 
@@ -241,6 +253,7 @@ static void set_battery_symbol(lv_obj_t *widget, struct battery_state state) {
         lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(charge_icon, LV_OBJ_FLAG_HIDDEN);
     }
+#endif
 }
 
 void battery_status_update_cb(struct battery_state state) {
@@ -331,6 +344,12 @@ ZMK_SUBSCRIPTION(widget_dongle_battery_status, zmk_usb_conn_state_changed);
 
 int zmk_widget_dongle_battery_status_init(struct zmk_widget_dongle_battery_status *widget, lv_obj_t *parent) {
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
+    widget->obj = parent;
+    sys_slist_append(&widgets, &widget->node);
+    widget_dongle_battery_status_init();
+    return 0;
+#else
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
     /* Compact battery items are direct screen children, not a clipped panel. */
     widget->obj = parent;
     lv_obj_t *battery_parent = parent;
@@ -396,6 +415,7 @@ int zmk_widget_dongle_battery_status_init(struct zmk_widget_dongle_battery_statu
     widget_dongle_battery_status_init();
 
     return 0;
+#endif
 }
 
 lv_obj_t *zmk_widget_dongle_battery_status_obj(struct zmk_widget_dongle_battery_status *widget) {
@@ -405,15 +425,7 @@ lv_obj_t *zmk_widget_dongle_battery_status_obj(struct zmk_widget_dongle_battery_
 void zmk_widget_dongle_battery_status_set_hidden(struct zmk_widget_dongle_battery_status *widget, bool hidden) {
     if (widget == NULL) return;
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
-    for (size_t i = 0; i < ARRAY_SIZE(battery_objects); i++) {
-        lv_obj_t *items[] = { battery_objects[i].symbol, battery_objects[i].label,
-                              battery_objects[i].charge_icon };
-        for (size_t j = 0; j < ARRAY_SIZE(items); j++) {
-            if (items[j] == NULL) continue;
-            if (hidden) lv_obj_add_flag(items[j], LV_OBJ_FLAG_HIDDEN);
-            else lv_obj_clear_flag(items[j], LV_OBJ_FLAG_HIDDEN);
-        }
-    }
+    ARG_UNUSED(hidden);
 #else
     if (hidden) lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
     else lv_obj_clear_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);

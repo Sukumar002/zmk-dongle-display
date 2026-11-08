@@ -11,6 +11,7 @@
 #include "widgets/hid_indicators.h"
 #include "widgets/wpm_status.h"
 #include "widgets/timeout_status.h"
+#include "compact_renderer.h"
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <hana_base_view.h>
@@ -53,6 +54,7 @@ void zmk_display_timeout_overlay_set(bool active) {
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
     if (timeout_overlay_active == active) return;
     timeout_overlay_active = active;
+    zmk_compact_renderer_set_visible(!active);
 
     if (active) {
         if (output_status_widget.obj)
@@ -226,6 +228,9 @@ lv_obj_t *zmk_display_status_screen() {
     lv_style_set_text_line_space(&global_style, 1);
     lv_obj_add_style(screen_root, &global_style, LV_PART_MAIN);
 
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
+    zmk_compact_renderer_init(screen_root);
+#endif
     zmk_widget_output_status_init(&output_status_widget, screen_root);
 #if !IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
     lv_obj_align(zmk_widget_output_status_obj(&output_status_widget), LV_ALIGN_TOP_LEFT, 0, 0);

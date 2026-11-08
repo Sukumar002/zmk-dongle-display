@@ -17,12 +17,15 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/endpoints.h>
 
 #include "output_status.h"
+#include "../compact_renderer.h"
+#include "../compact_renderer.h"
 #if IS_ENABLED(CONFIG_ZMK_BLE)
 #  include <zmk/events/ble_active_profile_changed.h>
 #  include <zmk/ble.h>
 #endif
 static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
 
+#if !IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
 LV_IMG_DECLARE(sym_usb);
 LV_IMG_DECLARE(sym_bt);
 LV_IMG_DECLARE(sym_ok);
@@ -58,6 +61,7 @@ enum selection_line_state {
 } current_selection_line_state;
 
 lv_point_precise_t selection_line_points[] = { {0, 0}, {0, 0} };
+#endif
 
 struct output_status_state {
     struct zmk_endpoint_instance selected_endpoint;
@@ -88,6 +92,7 @@ static struct output_status_state get_state(const zmk_event_t *_eh) {
     return st;
 }
 
+#if !IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
 static void anim_x_cb(void * var, int32_t v) {
     lv_obj_set_x(var, v);
 }
@@ -118,7 +123,18 @@ static void change_size_object(void *obj, int32_t from, int32_t to) {
     lv_anim_start(&a);
 }
 
+#endif
 static void set_status_symbol(struct zmk_widget_output_status *widget, struct output_status_state state) {
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
+    enum zmk_transport transport = state.selected_endpoint.transport;
+    bool connected = transport != ZMK_TRANSPORT_NONE;
+    zmk_compact_renderer_set_output(state.usb_is_hid_ready && connected,
+                                    state.active_profile_connected,
+                                    state.active_profile_bonded,
+                                    state.active_profile_index);
+    ARG_UNUSED(widget);
+    return;
+#else
     lv_obj_t *usb = widget->usb;
     lv_obj_t *usb_hid_status = widget->usb_hid_status;
     lv_obj_t *bt = widget->bt;
@@ -180,6 +196,7 @@ static void set_status_symbol(struct zmk_widget_output_status *widget, struct ou
     } else {
         lv_img_set_src(bt_status, &sym_open);
     }
+#endif
 }
 
 static void output_status_update_cb(struct output_status_state state) {
@@ -196,6 +213,12 @@ ZMK_SUBSCRIPTION(widget_output_status, zmk_ble_active_profile_changed);
 ZMK_SUBSCRIPTION(widget_output_status, zmk_usb_conn_state_changed);
 
 int zmk_widget_output_status_init(struct zmk_widget_output_status *widget, lv_obj_t *parent) {
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
+    widget->obj = parent;
+    sys_slist_append(&widgets, &widget->node);
+    widget_output_status_init();
+    return 0;
+#else
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
     /* Compact indicators are direct children of the physical screen. */
     widget->obj = parent;
@@ -252,6 +275,7 @@ int zmk_widget_output_status_init(struct zmk_widget_output_status *widget, lv_ob
 
     widget_output_status_init();
     return 0;
+#endif
 }
 
 lv_obj_t *zmk_widget_output_status_obj(struct zmk_widget_output_status *widget) {
@@ -261,13 +285,7 @@ lv_obj_t *zmk_widget_output_status_obj(struct zmk_widget_output_status *widget) 
 void zmk_widget_output_status_set_hidden(struct zmk_widget_output_status *widget, bool hidden) {
     if (widget == NULL) return;
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
-    lv_obj_t *items[] = { widget->usb, widget->usb_hid_status, widget->bt,
-                          widget->bt_number, widget->bt_status };
-    for (size_t i = 0; i < ARRAY_SIZE(items); i++) {
-        if (items[i] == NULL) continue;
-        if (hidden) lv_obj_add_flag(items[i], LV_OBJ_FLAG_HIDDEN);
-        else lv_obj_clear_flag(items[i], LV_OBJ_FLAG_HIDDEN);
-    }
+    ARG_UNUSED(hidden);
 #else
     if (hidden) lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
     else lv_obj_clear_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
