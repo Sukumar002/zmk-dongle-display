@@ -3,6 +3,10 @@
 
 if SHIELD_DONGLE_DISPLAY
 
+config HANA_RAW_DASHBOARD
+    bool "Use standalone Zephyr framebuffer dashboard"
+    default y if !ZMK_DISPLAY
+
 choice ZMK_DISPLAY_STATUS_SCREEN
     default ZMK_DISPLAY_STATUS_SCREEN_CUSTOM
 endchoice
