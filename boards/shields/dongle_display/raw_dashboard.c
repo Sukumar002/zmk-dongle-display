@@ -123,11 +123,14 @@ static const uint8_t font[][5] = {
  ['W'-32]={0x3f,0x40,0x38,0x40,0x3f}, ['X'-32]={0x63,0x14,0x08,0x14,0x63},
  ['Y'-32]={0x07,0x08,0x70,0x08,0x07}, ['Z'-32]={0x61,0x51,0x49,0x45,0x43},
  ['%'-32]={0x63,0x13,0x08,0x64,0x63}, ['-'-32]={0x08,0x08,0x08,0x08,0x08},
-};static void pixel(int x, int y)
+};static void set_pixel(int x, int y, bool on)
 {
     if (x < 0 || x >= OLED_W || y < 0 || y >= OLED_H) return;
-    framebuffer[(y / 8) * OLED_W + x] |= BIT(y & 7);
+    uint8_t *byte = &framebuffer[(y / 8) * OLED_W + x];
+    if (on) *byte |= BIT(y & 7);
+    else *byte &= ~BIT(y & 7);
 }
+static void pixel(int x, int y) { set_pixel(x, y, true); }
 
 static void hline(int x, int y, int width)
 {
@@ -138,28 +141,63 @@ static void vline(int x, int y, int height)
 {
     for (int i = 0; i < height; i++) pixel(x, y + i);
 }
+static void fill_rect(int x, int y, int width, int height)
+{
+    for (int yy = y; yy < y + height; yy++)
+        for (int xx = x; xx < x + width; xx++) pixel(xx, yy);
+}
+static void outline_rect(int x, int y, int width, int height)
+{
+    hline(x, y, width);
+    hline(x, y + height - 1, width);
+    vline(x, y, height);
+    vline(x + width - 1, y, height);
+}
 
-static void draw_text(const char *s, int x, int y)
+static void draw_text_color(const char *s, int x, int y, bool foreground)
 {
     while (*s) {
         unsigned char c = (unsigned char)*s++;
-        if (c == ' ') {
-            /* Space advances the text cursor but must not index font[0]:
-             * that slot is also used for the digit zero. */
-            x += 6;
-            continue;
-        } else if (c >= '0' && c <= '9') {
-            const uint8_t *g = font[c - '0'];
+        if (c >= 'a' && c <= 'z') c = c - 'a' + 'A';
+        if (c == ' ') { x += 6; continue; }
+        const uint8_t *g = NULL;
+        if (c >= '0' && c <= '9') g = font[c - '0'];
+        else if (c >= 32 && c < 128) g = font[c - 32];
+        if (g != NULL) {
             for (int col = 0; col < 5; col++)
                 for (int row = 0; row < 7; row++)
-                    if (g[col] & BIT(row)) pixel(x + col, y + row);
-        } else if (c >= 32 && c < 128) {
-            const uint8_t *g = font[c - 32];
-            for (int col = 0; col < 5; col++)
-                for (int row = 0; row < 7; row++)
-                    if (g[col] & BIT(row)) pixel(x + col, y + row);
+                    set_pixel(x + col, y + row, (g[col] & BIT(row)) ? foreground : !foreground);
         }
         x += 6;
+    }
+}
+static void draw_text(const char *s, int x, int y)
+{
+    draw_text_color(s, x, y, true);
+}
+
+/* Double-sized 5x7 text uses 14 of the OLED's 32 vertical pixels. */
+static void draw_large_text(const char *s, int x, int y)
+{
+    while (*s) {
+        unsigned char c = (unsigned char)*s++;
+        if (c >= 'a' && c <= 'z') c = c - 'a' + 'A';
+        if (c == ' ') { x += 12; continue; }
+        const uint8_t *g = NULL;
+        if (c >= '0' && c <= '9') g = font[c - '0'];
+        else if (c >= 32 && c < 128) g = font[c - 32];
+        if (g != NULL) {
+            for (int col = 0; col < 5; col++) {
+                for (int row = 0; row < 7; row++) {
+                    bool on = (g[col] & BIT(row)) != 0;
+                    set_pixel(x + col * 2, y + row * 2, on);
+                    set_pixel(x + col * 2 + 1, y + row * 2, on);
+                    set_pixel(x + col * 2, y + row * 2 + 1, on);
+                    set_pixel(x + col * 2 + 1, y + row * 2 + 1, on);
+                }
+            }
+        }
+        x += 12;
     }
 }
 
