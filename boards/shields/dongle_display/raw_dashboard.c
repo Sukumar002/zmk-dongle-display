@@ -600,7 +600,9 @@ static void refresh_layer_state(void)
 
     active_layer = next_layer;
     layer_scroll_px = 0;
-    const char *name = zmk_keymap_layer_name(active_layer);
+    /* active_layer is an ordering index; layer_name expects the stable ID. */
+    const zmk_keymap_layer_id_t layer_id = zmk_keymap_layer_index_to_id(active_layer);
+    const char *name = zmk_keymap_layer_name(layer_id);
     if (name == NULL || name[0] == '\0') {
         snprintk(active_layer_name, sizeof(active_layer_name), "LAYER %u", active_layer);
     } else {
