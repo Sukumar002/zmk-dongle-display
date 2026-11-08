@@ -317,16 +317,81 @@ static void draw_battery_row(int y, char side, uint8_t level)
     draw_battery_icon(108, y, level);
 }
 
+static int dashboard_flush(void)
+{
+    const struct display_buffer_descriptor desc = {
+        .buf_size = sizeof(framebuffer), .width = OLED_W,
+        .height = OLED_H, .pitch = OLED_W,
+    };
+    return display_write(oled, 0, 0, &desc, framebuffer);
+}
+
+static void draw_layer_screen(void)
+{
+    const int y = (OLED_H - 14) / 2;
+    const int width = (int)strlen(active_layer_name) * 12;
+    if (width <= OLED_W) {
+        draw_large_text(active_layer_name, (OLED_W - width) / 2, y);
+    } else {
+        const int cycle = width + 24;
+        const int offset = layer_scroll_px % cycle;
+        draw_large_text(active_layer_name, -offset, y);
+        draw_large_text(active_layer_name, width + 24 - offset, y);
+    }
+}
+
+static void draw_modifier_family(void)
+{
+    static const char *const mac_names[4] = { "CTRL", "OPT", "CMD", "SHIFT" };
+    static const char *const win_names[4] = { "CTRL", "WIN", "ALT", "SHIFT" };
+    const char *const *names = layout_windows_mode ? win_names : mac_names;
+    const uint8_t masks[4] = {
+        MOD_LCTL | MOD_RCTL,
+        layout_windows_mode ? (MOD_LGUI | MOD_RGUI) : (MOD_LALT | MOD_RALT),
+        layout_windows_mode ? (MOD_LALT | MOD_RALT) : (MOD_LGUI | MOD_RGUI),
+        MOD_LSFT | MOD_RSFT,
+    };
+    const uint8_t active = zmk_hid_get_explicit_mods();
+
+    for (int i = 0; i < 4; i++) {
+        const int x = i * 32;
+        const int text_x = x + (32 - (int)strlen(names[i]) * 6) / 2;
+        if ((active & masks[i]) != 0) {
+            fill_rect(x, 0, 32, OLED_H);
+            draw_text_color(names[i], text_x, 12, false);
+        } else {
+            outline_rect(x, 0, 32, OLED_H);
+            draw_text(names[i], text_x, 12);
+        }
+    }
+}
+
 static int dashboard_render(void)
 {
     memset(framebuffer, 0, sizeof(framebuffer));
 
-    /* USB and Bluetooth retain the 64px artwork and status semantics.
-     * The selected-output underline is transposed into a vertical marker. */
+    /* Any active non-base layer owns the screen until it is released. */
+    if (active_layer != 0) {
+        draw_layer_screen();
+        return dashboard_flush();
+    }
+
+    /* Show a short MACOS/WINDOWS confirmation after layout shift. */
+    if (layout_flash_active) {
+        const char *label = layout_windows_mode ? "WINDOWS" : "MACOS";
+        const int width = (int)strlen(label) * 12;
+        draw_large_text(label, (OLED_W - width) / 2, (OLED_H - 14) / 2);
+        return dashboard_flush();
+    }
+
+    if (base_view_mode == 1) {
+        draw_modifier_family();
+        return dashboard_flush();
+    }
+
+    /* Original, tested connection and battery dashboard. */
     draw_usb_icon(7, 2);
     draw_bluetooth_icon(7, 17);
-    /* Match the 128x64 composition: connection state as superscript,
-     * profile number as subscript, both immediately to the right of BT. */
     draw_bt_state(17, 17);
     draw_profile_number(17, 25, bt_profile);
 
@@ -338,12 +403,68 @@ static int dashboard_render(void)
 
     draw_battery_row(2, 'L', half_level[0]);
     draw_battery_row(18, 'R', half_level[1]);
+    return dashboard_flush();
+}
 
-    const struct display_buffer_descriptor desc = {
-        .buf_size = sizeof(framebuffer), .width = OLED_W,
-        .height = OLED_H, .pitch = OLED_W,
-    };
-    return display_write(oled, 0, 0, &desc, framebuffer);
+static void layer_scroll_handler(struct k_work *work)
+{
+    ARG_UNUSED(work);
+    if (active_layer == 0) return;
+
+    const int width = (int)strlen(active_layer_name) * 12;
+    if (width <= OLED_W) return;
+
+    const int cycle = width + 24;
+    layer_scroll_px++;
+    if (layer_scroll_px >= cycle) {
+        layer_scroll_px = 0;
+        (void)dashboard_render();
+        (void)k_work_reschedule(&layer_scroll_work, K_MSEC(650));
+        return;
+    }
+
+    (void)dashboard_render();
+    (void)k_work_reschedule(&layer_scroll_work, K_MSEC(35));
+}
+
+static void layout_flash_timeout_handler(struct k_work *work)
+{
+    ARG_UNUSED(work);
+    layout_flash_active = false;
+    (void)dashboard_render();
+}
+
+static void layout_probe_handler(struct k_work *work)
+{
+    ARG_UNUSED(work);
+    const bool next_mode = read_layout_windows_mode();
+    if (next_mode != layout_windows_mode) {
+        layout_windows_mode = next_mode;
+        layout_flash_active = true;
+        (void)k_work_reschedule(&layout_flash_work, K_MSEC(700));
+    }
+    (void)dashboard_render();
+}
+
+static void refresh_layer_state(void)
+{
+    const uint8_t next_layer = zmk_keymap_highest_layer_active();
+    if (next_layer == active_layer) return;
+
+    active_layer = next_layer;
+    layer_scroll_px = 0;
+    const char *name = zmk_keymap_layer_name(active_layer);
+    if (name == NULL || name[0] == '\0') {
+        snprintk(active_layer_name, sizeof(active_layer_name), "LAYER %u", active_layer);
+    } else {
+        snprintk(active_layer_name, sizeof(active_layer_name), "%s", name);
+    }
+
+    (void)k_work_cancel_delayable(&layer_scroll_work);
+    if (active_layer != 0 && strlen(active_layer_name) * 12 > OLED_W) {
+        (void)k_work_reschedule(&layer_scroll_work, K_MSEC(650));
+    }
+    (void)dashboard_render();
 }
 
 static void refresh_output_state(void)
