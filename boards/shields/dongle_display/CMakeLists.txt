@@ -34,3 +34,11 @@ if(CONFIG_ZMK_DISPLAY AND CONFIG_ZMK_DISPLAY_STATUS_SCREEN_CUSTOM AND ((NOT CONF
         zephyr_library_sources(widgets/wpm_status.c widgets/wpm_status_sym.c)
     endif()
 endif()
+
+
+# Standalone Zephyr framebuffer renderer for the 128x32 Hana dongle.
+# It intentionally builds without ZMK_DISPLAY/LVGL.
+if(CONFIG_HANA_RAW_DASHBOARD AND ((NOT CONFIG_ZMK_SPLIT) OR CONFIG_ZMK_SPLIT_ROLE_CENTRAL))
+    zephyr_library()
+    zephyr_library_sources(raw_dashboard.c)
+endif()
