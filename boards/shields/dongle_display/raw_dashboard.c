@@ -183,20 +183,29 @@ static void draw_battery_icon(int x, int y, uint8_t level)
 
 static void draw_battery_row(int y, char side, uint8_t level)
 {
-    char label[6];
+    char label[8];
     if (level == 0xff) {
-        label[0] = side; label[1] = '-'; label[2] = '-'; label[3] = 0;
+        /* Unknown level: keep the side label and placeholder right-aligned. */
+        label[0] = side; label[1] = ' '; label[2] = '-'; label[3] = '-';
+        label[4] = 0;
     } else {
         unsigned int value = MIN(level, 100);
-        if (value == 100) {
-            label[0] = side; label[1] = '1'; label[2] = '0';
-            label[3] = '0'; label[4] = '%'; label[5] = 0;
+        /* No percent sign. A single space separates side and percentage. */
+        if (value >= 100) {
+            label[0] = side; label[1] = ' '; label[2] = '1';
+            label[3] = '0'; label[4] = '0'; label[5] = 0;
         } else {
-            label[0] = side; label[1] = '0' + (value / 10);
-            label[2] = '0' + (value % 10); label[3] = '%'; label[4] = 0;
+            label[0] = side; label[1] = ' ';
+            label[2] = '0' + (value / 10);
+            label[3] = '0' + (value % 10); label[4] = 0;
         }
     }
-    draw_text(label, 70, y + 1);
+
+    /* Right-align the text with exactly one character cell before the icon.
+     * Shorter values naturally move L/R one cell to the right. */
+    const int text_width = (strlen(label) - 1) * 6 + 5;
+    const int text_x = 102 - text_width;
+    draw_text(label, text_x, y + 1);
     draw_battery_icon(108, y, level);
 }
 
@@ -208,8 +217,10 @@ static int dashboard_render(void)
      * The selected-output underline is transposed into a vertical marker. */
     draw_usb_icon(7, 2);
     draw_bluetooth_icon(7, 17);
+    /* Match the 128x64 composition: connection state as superscript,
+     * profile number as subscript, both immediately to the right of BT. */
+    draw_bt_state(17, 17);
     draw_profile_number(17, 25, bt_profile);
-    draw_bt_state(25, 21);
 
     if (active_transport == ZMK_TRANSPORT_USB) {
         draw_active_transport_marker(1, 4);
