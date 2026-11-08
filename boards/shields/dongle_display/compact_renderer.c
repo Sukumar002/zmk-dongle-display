@@ -1,9 +1,12 @@
 /*
  * SPDX-License-Identifier: MIT
  *
- * Fixed-coordinate renderer for compact monochrome status displays.
- * The dashboard is drawn into one 128x32 canvas; no child widgets or
- * LVGL layout containers participate in normal status rendering.
+ * Native LVGL renderer for the 128x32 compact monochrome dashboard.
+ *
+ * This intentionally uses ordinary LVGL labels and positioned objects rather
+ * than a full-screen canvas. It keeps every element independently anchored to
+ * the physical 128x32 screen, avoiding canvas color-format conversion and
+ * making the layout inspectable in the LVGL object tree.
  */
 #include <zephyr/kernel.h>
 #include <lvgl.h>
@@ -11,14 +14,23 @@
 
 #define COMPACT_W 128
 #define COMPACT_H 32
-#define GLYPH_W 5
-#define GLYPH_H 7
-#define GLYPH_ADVANCE 6
-#define TEXT_COLOR lv_color_black()
+#define LEFT_X 0
+#define RIGHT_TEXT_X 86
+#define BATTERY_X 119
+#define ROW0_Y 1
+#define ROW1_Y 17
+#define BATTERY_W 7
+#define BATTERY_H 11
 
-static lv_obj_t *canvas;
-LV_ATTRIBUTE_MEM_ALIGN static uint8_t canvas_buffer[LV_CANVAS_BUF_SIZE(COMPACT_W, COMPACT_H,
-        LV_COLOR_FORMAT_GET_BPP(LV_COLOR_FORMAT_L8), LV_DRAW_BUF_STRIDE_ALIGN)];
+static lv_obj_t *root;
+static lv_obj_t *usb_label;
+static lv_obj_t *usb_state_label;
+static lv_obj_t *bt_label;
+static lv_obj_t *bt_profile_label;
+static lv_obj_t *bt_state_label;
+static lv_obj_t *battery_labels[2];
+static lv_obj_t *battery_cases[2];
+static lv_obj_t *battery_fills[2];
 
 static bool dashboard_visible = true;
 static bool usb_ready;
@@ -29,173 +41,122 @@ static bool battery_valid[2];
 static uint8_t battery_level[2];
 static bool battery_charging[2];
 
-static const uint8_t *glyph(char c) {
-    static const uint8_t blank[7] = {0};
-    /* Five columns, seven rows; bit 0 is the top pixel. */
-    static const uint8_t digits[10][7] = {
-        {14,17,19,21,25,17,14}, {4,12,4,4,4,4,14},
-        {14,17,1,2,4,8,31}, {30,1,1,14,1,1,30},
-        {2,6,10,18,31,2,2}, {31,16,16,30,1,1,30},
-        {6,8,16,30,17,17,14}, {31,1,2,4,8,8,8},
-        {14,17,17,14,17,17,14}, {14,17,17,15,1,2,12}
-    };
-    static const uint8_t letters[26][7] = {
-        {14,17,17,31,17,17,17}, {30,17,17,30,17,17,30},
-        {14,17,16,16,16,17,14}, {30,17,17,17,17,17,30},
-        {31,16,16,30,16,16,31}, {31,16,16,30,16,16,16},
-        {14,17,16,23,17,17,15}, {17,17,17,31,17,17,17},
-        {14,4,4,4,4,4,14}, {7,2,2,2,18,18,12},
-        {17,18,20,24,20,18,17}, {16,16,16,16,16,16,31},
-        {17,27,21,21,17,17,17}, {17,25,21,19,17,17,17},
-        {14,17,17,17,17,17,14}, {30,17,17,30,16,16,16},
-        {14,17,17,17,21,18,13}, {30,17,17,30,20,18,17},
-        {15,16,16,14,1,1,30}, {31,4,4,4,4,4,4},
-        {17,17,17,17,17,17,14}, {17,17,17,17,17,10,4},
-        {17,17,17,21,21,21,10}, {17,17,10,4,10,17,17},
-        {17,17,10,4,4,4,4}, {31,1,2,4,8,16,31}
-    };
-    if (c >= '0' && c <= '9') return digits[c - '0'];
-    if (c >= 'A' && c <= 'Z') return letters[c - 'A'];
-    if (c >= 'a' && c <= 'z') return letters[c - 'a'];
-    static const uint8_t percent[7] = {17,2,4,8,17,0,0};
-    static const uint8_t dash[7] = {0,0,0,31,0,0,0};
-    static const uint8_t colon[7] = {0,4,4,0,4,4,0};
-    static const uint8_t dot[7] = {0,0,0,0,0,4,4};
-    if (c == '%') return percent;
-    if (c == '-') return dash;
-    if (c == ':') return colon;
-    if (c == '.') return dot;
-    return blank;
+static lv_obj_t *make_label(lv_obj_t *parent, const char *text, int x, int y) {
+    lv_obj_t *label = lv_label_create(parent);
+    lv_label_set_text(label, text);
+    lv_obj_set_pos(label, x, y);
+    lv_obj_set_style_text_color(label, lv_color_black(), LV_PART_MAIN);
+    lv_obj_set_style_text_font(label, &lv_font_unscii_8, LV_PART_MAIN);
+    lv_obj_set_style_text_letter_space(label, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(label, 0, LV_PART_MAIN);
+    lv_obj_set_style_border_width(label, 0, LV_PART_MAIN);
+    return label;
 }
 
-static void px(int x, int y) {
-    if (canvas && x >= 0 && x < COMPACT_W && y >= 0 && y < COMPACT_H)
-        lv_canvas_set_px(canvas, x, y, TEXT_COLOR, LV_OPA_COVER);
+static lv_obj_t *make_battery_case(lv_obj_t *parent, int y) {
+    lv_obj_t *case_obj = lv_obj_create(parent);
+    lv_obj_remove_style_all(case_obj);
+    lv_obj_set_pos(case_obj, BATTERY_X, y);
+    lv_obj_set_size(case_obj, BATTERY_W, BATTERY_H);
+    lv_obj_set_style_bg_opa(case_obj, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_color(case_obj, lv_color_black(), LV_PART_MAIN);
+    lv_obj_set_style_border_width(case_obj, 1, LV_PART_MAIN);
+    lv_obj_set_style_radius(case_obj, 1, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(case_obj, 0, LV_PART_MAIN);
+
+    lv_obj_t *terminal = lv_obj_create(parent);
+    lv_obj_remove_style_all(terminal);
+    lv_obj_set_pos(terminal, BATTERY_X + 2, y - 1);
+    lv_obj_set_size(terminal, 3, 1);
+    lv_obj_set_style_bg_color(terminal, lv_color_black(), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(terminal, LV_OPA_COVER, LV_PART_MAIN);
+    return case_obj;
 }
 
-static void hline(int x, int y, int width) {
-    for (int i = 0; i < width; i++) px(x + i, y);
-}
+static void update_battery(uint8_t row) {
+    if (row >= 2 || battery_labels[row] == NULL) return;
 
-static void vline(int x, int y, int height) {
-    for (int i = 0; i < height; i++) px(x, y + i);
-}
+    if (!battery_valid[row]) {
+        lv_label_set_text(battery_labels[row], row == 0 ? "L --%" : "R --%");
+        lv_obj_add_flag(battery_cases[row], LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(battery_fills[row], LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
 
-static void draw_char(int x, int y, char c) {
-    const uint8_t *rows = glyph(c);
-    for (int row = 0; row < GLYPH_H; row++) {
-        for (int col = 0; col < GLYPH_W; col++) {
-            if (rows[row] & (1U << (GLYPH_W - 1 - col))) px(x + col, y + row);
+    uint8_t level = MIN(battery_level[row], 100);
+    lv_label_set_text_fmt(battery_labels[row], row == 0 ? "L %u%%" : "R %u%%", level);
+    lv_obj_clear_flag(battery_cases[row], LV_OBJ_FLAG_HIDDEN);
+
+    if (battery_charging[row]) {
+        lv_obj_set_size(battery_fills[row], 3, 7);
+        lv_obj_set_pos(battery_fills[row], BATTERY_X + 2,
+                       (row == 0 ? ROW0_Y : ROW1_Y) + 3);
+    } else {
+        uint8_t fill_h = (level * 7U) / 100U;
+        if (fill_h == 0) {
+            lv_obj_add_flag(battery_fills[row], LV_OBJ_FLAG_HIDDEN);
+            return;
         }
-    }
-}
-
-static int text_width(const char *s) {
-    int n = 0;
-    while (s && s[n]) n++;
-    return n ? n * GLYPH_ADVANCE - 1 : 0;
-}
-
-static void draw_text(int x, int y, const char *s) {
-    if (!s) return;
-    while (*s) {
-        draw_char(x, y, *s++);
-        x += GLYPH_ADVANCE;
-    }
-}
-
-static void draw_centered(const char *s) {
-    int width = text_width(s);
-    int x = (COMPACT_W - width) / 2;
-    int y = (COMPACT_H - GLYPH_H) / 2;
-    draw_text(x, y, s);
-}
-
-static void draw_usb_icon(void) {
-    /* USB trident: stem, upper branch, lower branch and connector tips. */
-    vline(5, 1, 12);
-    hline(2, 4, 7);
-    px(2, 3); px(3, 2); px(4, 1);
-    px(1, 5); px(2, 6); px(3, 5);
-    px(4, 11); px(5, 12); px(6, 11);
-    hline(5, 1, 1);
-    px(5, 0);
-}
-
-static void draw_bt_icon(void) {
-    /* Compact Bluetooth rune, 9x14. */
-    /* Draw the rune explicitly with diagonals and central stem. */
-    vline(4, 18, 13);
-    px(4,18); px(5,19); px(6,20); px(7,21); px(6,22); px(5,23);
-    px(4,24); px(5,25); px(6,26); px(7,27); px(6,28); px(5,29);
-    px(4,30); px(3,29); px(2,28); px(1,27);
-    px(3,25); px(2,24); px(1,23); px(2,22); px(3,21);
-    px(3,19); px(4,18);
-}
-
-static void draw_status_mark(int x, int y, bool good, bool open) {
-    if (open) {
-        hline(x + 1, y, 3); px(x, y + 1); px(x + 4, y + 1);
-        px(x, y + 2); px(x + 4, y + 2); hline(x + 1, y + 3, 3);
-    } else if (good) {
-        px(x, y + 2); px(x + 1, y + 3); px(x + 2, y + 2);
-        px(x + 3, y + 1); px(x + 4, y);
-    } else {
-        px(x, y); px(x + 4, y); px(x + 1, y + 1); px(x + 3, y + 1);
-        px(x + 2, y + 2); px(x + 1, y + 3); px(x + 3, y + 3);
-        px(x, y + 4); px(x + 4, y + 4);
-    }
-}
-
-static void draw_battery(int row, int level, bool charging) {
-    const int y = row == 0 ? 3 : 19;
-    char value[5];
-    if (level > 100) level = 100;
-    if (level == 100) {
-        value[0] = '1'; value[1] = '0'; value[2] = '0'; value[3] = '%'; value[4] = 0;
-    } else {
-        value[0] = (char)('0' + (level / 10));
-        value[1] = (char)('0' + (level % 10));
-        value[2] = '%'; value[3] = 0;
-        if (level < 10) { value[0] = (char)('0' + level); value[1] = '%'; value[2] = 0; }
-    }
-    draw_text(91, y, value);
-    /* 6x9 battery outline, with fill proportional to charge. */
-    hline(119, y + 1, 7); hline(119, y + 8, 7);
-    vline(119, y + 2, 6); vline(125, y + 2, 6);
-    px(121, y); px(122, y);
-    if (charging) {
-        px(122, y + 2); px(121, y + 4); px(123, y + 4);
-        px(122, y + 6);
-    } else {
-        int fill = (level * 4) / 100;
-        for (int yy = 0; yy < fill; yy++) hline(121, y + 7 - yy, 3);
+        lv_obj_clear_flag(battery_fills[row], LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_size(battery_fills[row], 3, fill_h);
+        lv_obj_set_pos(battery_fills[row], BATTERY_X + 2,
+                       (row == 0 ? ROW0_Y : ROW1_Y) + 9 - fill_h);
     }
 }
 
 static void render(void) {
-    if (!canvas) return;
-    lv_canvas_fill_bg(canvas, lv_color_white(), LV_OPA_COVER);
-    if (!dashboard_visible) return;
+    if (root == NULL) return;
 
-    draw_usb_icon();
-    draw_status_mark(13, 5, usb_ready, false);
-    draw_bt_icon();
-    draw_text(13, 22, bt_profile < 5 ? (const char *[]){"1","2","3","4","5"}[bt_profile] : "?");
-    draw_status_mark(21, 22, bt_connected, !bt_bonded);
+    if (!dashboard_visible) {
+        lv_obj_add_flag(root, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
+    lv_obj_clear_flag(root, LV_OBJ_FLAG_HIDDEN);
 
-    if (battery_valid[0]) draw_battery(0, battery_level[0], battery_charging[0]);
-    if (battery_valid[1]) draw_battery(1, battery_level[1], battery_charging[1]);
+    lv_label_set_text(usb_state_label, usb_ready ? "+" : "-");
+    lv_label_set_text(bt_profile_label,
+                      bt_profile < 5 ? (const char *[]){"1", "2", "3", "4", "5"}[bt_profile] : "?");
+    lv_label_set_text(bt_state_label, !bt_bonded ? "o" : (bt_connected ? "+" : "-"));
+
+    update_battery(0);
+    update_battery(1);
 }
 
 int zmk_compact_renderer_init(lv_obj_t *parent) {
-    canvas = lv_canvas_create(parent);
-    if (!canvas) return -ENOMEM;
-    lv_canvas_set_buffer(canvas, canvas_buffer, COMPACT_W, COMPACT_H, LV_COLOR_FORMAT_L8);
-    lv_obj_set_pos(canvas, 0, 0);
-    lv_obj_set_size(canvas, COMPACT_W, COMPACT_H);
-    lv_obj_remove_style_all(canvas);
-    lv_obj_set_style_bg_opa(canvas, LV_OPA_TRANSP, LV_PART_MAIN);
+    root = lv_obj_create(parent);
+    if (root == NULL) return -ENOMEM;
+
+    lv_obj_remove_style_all(root);
+    lv_obj_set_pos(root, 0, 0);
+    lv_obj_set_size(root, COMPACT_W, COMPACT_H);
+    lv_obj_set_layout(root, LV_LAYOUT_NONE);
+    lv_obj_set_style_bg_opa(root, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(root, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(root, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(root, LV_OBJ_FLAG_SCROLLABLE);
+
+    /* Upper-left USB status and lower-left Bluetooth/profile status. */
+    usb_label = make_label(root, "USB", LEFT_X, ROW0_Y);
+    usb_state_label = make_label(root, "-", 23, ROW0_Y);
+    bt_label = make_label(root, "BT", LEFT_X, ROW1_Y);
+    bt_profile_label = make_label(root, "1", 17, ROW1_Y);
+    bt_state_label = make_label(root, "-", 23, ROW1_Y);
+
+    /* Two vertically stacked split-half battery readings at the right edge. */
+    for (uint8_t row = 0; row < 2; row++) {
+        int y = row == 0 ? ROW0_Y : ROW1_Y;
+        battery_labels[row] = make_label(root, row == 0 ? "L --%" : "R --%",
+                                         RIGHT_TEXT_X, y);
+        battery_cases[row] = make_battery_case(root, y);
+        battery_fills[row] = lv_obj_create(root);
+        lv_obj_remove_style_all(battery_fills[row]);
+        lv_obj_set_style_bg_color(battery_fills[row], lv_color_black(), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(battery_fills[row], LV_OPA_COVER, LV_PART_MAIN);
+        lv_obj_set_size(battery_fills[row], 3, 1);
+        lv_obj_set_pos(battery_fills[row], BATTERY_X + 2, y + 9);
+        lv_obj_add_flag(battery_fills[row], LV_OBJ_FLAG_HIDDEN);
+    }
+
     render();
     return 0;
 }
