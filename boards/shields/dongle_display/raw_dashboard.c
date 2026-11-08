@@ -27,6 +27,9 @@
 #include <zmk/events/position_state_changed.h>
 #include <zmk/events/layer_state_changed.h>
 #include <zmk/hid.h>
+#include <zmk/hid_indicators.h>
+#include <zmk/events/hid_indicators_changed.h>
+#include <dt-bindings/zmk/hid_indicators.h>
 #include <zmk/keymap.h>
 #include <dt-bindings/zmk/modifiers.h>
 
@@ -43,6 +46,7 @@ static bool bt_connected;
 static bool bt_bonded;
 static uint8_t bt_profile;
 static enum zmk_transport active_transport = ZMK_TRANSPORT_NONE;
+static zmk_hid_indicators_t lock_indicators;
 
 /* Base view 0 is the original dashboard; 1 is the modifier family. */
 static uint8_t base_view_mode;
@@ -359,6 +363,40 @@ static void draw_modifier_bitmap(int x, int y, const uint8_t *bits, bool inverte
     }
 }
 
+/* Show only active host lock states. The complete group is centered in the
+ * 54px dashboard gap; each active letter gets its own 12x12 square. */
+static void draw_lock_indicators(void)
+{
+    static const struct {
+        uint8_t mask;
+        char letter;
+    } locks[] = {
+        { HID_INDICATOR_CAPS_LOCK, 'C' },
+        { HID_INDICATOR_NUM_LOCK, 'N' },
+        { HID_INDICATOR_SCROLL_LOCK, 'S' },
+    };
+
+    uint8_t active_count = 0;
+    for (size_t i = 0; i < ARRAY_SIZE(locks); i++) {
+        if (lock_indicators & locks[i].mask) active_count++;
+    }
+    if (active_count == 0) return;
+
+    const int box_size = 12;
+    const int gap = 3;
+    const int total_width = active_count * box_size + (active_count - 1) * gap;
+    int x = (OLED_W - total_width) / 2;
+    const int y = (OLED_H - box_size) / 2;
+
+    for (size_t i = 0; i < ARRAY_SIZE(locks); i++) {
+        if (!(lock_indicators & locks[i].mask)) continue;
+        outline_rect(x, y, box_size, box_size);
+        char label[] = { locks[i].letter, '\0' };
+        draw_text(label, x + 3, y + 2);
+        x += box_size + gap;
+    }
+}
+
 static int dashboard_flush(void)
 {
     const struct display_buffer_descriptor desc = {
@@ -451,6 +489,7 @@ static int dashboard_render(void)
 
     draw_battery_row(2, 'L', half_level[0]);
     draw_battery_row(18, 'R', half_level[1]);
+    draw_lock_indicators();
     return dashboard_flush();
 }
 
@@ -535,6 +574,14 @@ static int dashboard_listener(const zmk_event_t *eh)
         return ZMK_EV_EVENT_BUBBLE;
     }
 
+    const struct zmk_hid_indicators_changed *locks =
+        as_zmk_hid_indicators_changed(eh);
+    if (locks != NULL) {
+        lock_indicators = locks->indicators;
+        (void)dashboard_render();
+        return ZMK_EV_EVENT_BUBBLE;
+    }
+
     if (as_zmk_keycode_state_changed(eh) != NULL ||
         as_zmk_position_state_changed(eh) != NULL) {
         /* Read the map after the layout-shift behavior has updated its state. */
@@ -569,6 +616,7 @@ ZMK_SUBSCRIPTION(hana_128x32_dashboard, zmk_peripheral_battery_state_changed);
 ZMK_SUBSCRIPTION(hana_128x32_dashboard, zmk_layer_state_changed);
 ZMK_SUBSCRIPTION(hana_128x32_dashboard, zmk_keycode_state_changed);
 ZMK_SUBSCRIPTION(hana_128x32_dashboard, zmk_position_state_changed);
+ZMK_SUBSCRIPTION(hana_128x32_dashboard, zmk_hid_indicators_changed);
 
 static int hana_128x32_dashboard_init(void)
 {
@@ -595,6 +643,7 @@ static int hana_128x32_dashboard_init(void)
     k_work_init_delayable(&layout_probe_work, layout_probe_handler);
     k_work_init_delayable(&layout_flash_work, layout_flash_timeout_handler);
     layout_windows_mode = read_layout_windows_mode();
+    lock_indicators = zmk_hid_indicators_get_current_profile();
     refresh_output_state();
     refresh_layer_state();
     LOG_INF("128x32 base status renderer initialized");
