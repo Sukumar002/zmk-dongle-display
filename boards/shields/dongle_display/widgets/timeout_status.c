@@ -10,6 +10,8 @@
 /* Implemented by custom_status_screen.c for the compact 128x32 dashboard. */
 void zmk_display_timeout_overlay_set(bool active);
 
+static struct zmk_widget_timeout_status *active_widget;
+
 static void restore_base_screen(lv_timer_t *timer) {
     struct zmk_widget_timeout_status *widget = lv_timer_get_user_data(timer);
     lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
@@ -49,35 +51,28 @@ static struct timeout_state timeout_status_get_state(const zmk_event_t *eh) {
 }
 
 static void timeout_status_update_cb(struct timeout_state state) {
-    static struct zmk_widget_timeout_status *widget;
-    ARG_UNUSED(widget);
-    /* active_widget is assigned during widget initialization below. */
-    extern struct zmk_widget_timeout_status *zmk_timeout_active_widget;
-    widget = zmk_timeout_active_widget;
-    if (widget == NULL) return;
+    if (active_widget == NULL) return;
 
     if (state.feedback == ZMK_RUNTIME_TIMEOUT_FEEDBACK_HIDE) {
-        lv_timer_pause(widget->hide_timer);
-        lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
+        lv_timer_pause(active_widget->hide_timer);
+        lv_obj_add_flag(active_widget->obj, LV_OBJ_FLAG_HIDDEN);
         zmk_display_timeout_overlay_set(false);
         return;
     }
 
-    set_timeout_text(widget->label, state.kind, state.timeout_ms);
+    set_timeout_text(active_widget->label, state.kind, state.timeout_ms);
     zmk_display_timeout_overlay_set(true);
-    lv_obj_clear_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_move_foreground(widget->obj);
+    lv_obj_clear_flag(active_widget->obj, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(active_widget->obj);
 
     if (state.feedback == ZMK_RUNTIME_TIMEOUT_FEEDBACK_HOLD) {
-        lv_timer_pause(widget->hide_timer);
+        lv_timer_pause(active_widget->hide_timer);
     } else {
-        lv_timer_set_period(widget->hide_timer, 2500);
-        lv_timer_reset(widget->hide_timer);
-        lv_timer_resume(widget->hide_timer);
+        lv_timer_set_period(active_widget->hide_timer, 2500);
+        lv_timer_reset(active_widget->hide_timer);
+        lv_timer_resume(active_widget->hide_timer);
     }
 }
-
-struct zmk_widget_timeout_status *zmk_timeout_active_widget;
 
 ZMK_DISPLAY_WIDGET_LISTENER(widget_timeout_status, struct timeout_state,
                             timeout_status_update_cb, timeout_status_get_state)
@@ -100,7 +95,7 @@ int zmk_widget_timeout_status_init(struct zmk_widget_timeout_status *widget, lv_
     lv_timer_pause(widget->hide_timer);
 
     lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
-    zmk_timeout_active_widget = widget;
+    active_widget = widget;
 
     widget_timeout_status_init();
     return 0;
