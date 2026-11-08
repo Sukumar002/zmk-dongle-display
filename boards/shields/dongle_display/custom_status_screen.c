@@ -205,6 +205,15 @@ void zmk_display_compact_set_modifier_view(bool enabled) {
 
 lv_obj_t *zmk_display_status_screen() {
     screen_root = lv_obj_create(NULL);
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
+    /* A screen root created with lv_obj_create inherits theme padding and
+     * border. That insets every aligned widget (and clips the 128x32 layout).
+     * Compact mode uses the physical panel bounds as its coordinate origin. */
+    lv_obj_remove_style_all(screen_root);
+    lv_obj_set_style_pad_all(screen_root, 0, LV_PART_MAIN);
+    lv_obj_set_style_border_width(screen_root, 0, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(screen_root, LV_OPA_COVER, LV_PART_MAIN);
+#endif
     lv_style_init(&global_style);
     lv_style_set_bg_color(&global_style, lv_color_white());
     lv_style_set_bg_opa(&global_style, LV_OPA_COVER);
