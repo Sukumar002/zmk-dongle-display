@@ -35,10 +35,12 @@ if(CONFIG_ZMK_DISPLAY AND CONFIG_ZMK_DISPLAY_STATUS_SCREEN_CUSTOM AND ((NOT CONF
     endif()
 endif()
 
-
-# Standalone Zephyr framebuffer renderer for the 128x32 Hana dongle.
-# It intentionally builds without ZMK_DISPLAY/LVGL.
+# Standalone 128x32 framebuffer renderer. It owns the OLED and uses ZMK
+# events directly; no LVGL screen or widget renderer is compiled.
 if(CONFIG_HANA_RAW_DASHBOARD AND ((NOT CONFIG_ZMK_SPLIT) OR CONFIG_ZMK_SPLIT_ROLE_CENTRAL))
     zephyr_library()
+    zephyr_library_include_directories(${ZEPHYR_LVGL_MODULE_DIR})
+    zephyr_library_include_directories(${ZEPHYR_BASE}/lib/gui/lvgl/)
     zephyr_library_sources(raw_dashboard.c)
+    zephyr_library_sources(${CMAKE_CURRENT_LIST_DIR}/../../../src/hana_base_view.c)
 endif()
