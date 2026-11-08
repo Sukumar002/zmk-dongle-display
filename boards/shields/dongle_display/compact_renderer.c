@@ -17,7 +17,7 @@
 #define TEXT_COLOR lv_color_black()
 
 static lv_obj_t *canvas;
-static uint8_t canvas_buffer[LV_CANVAS_BUF_SIZE(COMPACT_W, COMPACT_H,
+LV_ATTRIBUTE_MEM_ALIGN static uint8_t canvas_buffer[LV_CANVAS_BUF_SIZE(COMPACT_W, COMPACT_H,
         LV_COLOR_FORMAT_GET_BPP(LV_COLOR_FORMAT_L8), LV_DRAW_BUF_STRIDE_ALIGN)];
 
 static bool dashboard_visible = true;

@@ -18,7 +18,6 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
 #include "output_status.h"
 #include "../compact_renderer.h"
-#include "../compact_renderer.h"
 #if IS_ENABLED(CONFIG_ZMK_BLE)
 #  include <zmk/events/ble_active_profile_changed.h>
 #  include <zmk/ble.h>
