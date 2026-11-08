@@ -230,9 +230,16 @@ int zmk_widget_output_status_init(struct zmk_widget_output_status *widget, lv_ob
      * group made USB and Bluetooth share one row, rather than the two left
      * corners. Keep the original full-size icon artwork.
      */
-    lv_obj_set_size(widget->obj, 18, 32);
+    /* Use the full physical panel as the coordinate space. A narrow
+     * 18x32 child viewport can be clipped or laid out as a compact group by
+     * LVGL/theme handling. Full-screen bounds make all positions absolute
+     * panel coordinates and keep the two indicators in opposite corners. */
+    lv_obj_set_size(widget->obj, 128, 32);
+    lv_obj_set_pos(widget->obj, 0, 0);
+    lv_obj_set_scrollbar_mode(widget->obj, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_clear_flag(widget->obj, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_pos(usb, 0, 0);
-    lv_obj_set_pos(usb_hid_status, 2, 2);
+    lv_obj_set_pos(usb_hid_status, 11, 2);
     lv_obj_set_pos(bt, 0, 18);
     lv_obj_set_pos(bt_number, 11, 25);
     lv_obj_set_pos(bt_status, 11, 19);
