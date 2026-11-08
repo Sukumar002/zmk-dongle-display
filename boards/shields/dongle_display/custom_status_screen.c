@@ -56,10 +56,10 @@ void zmk_display_timeout_overlay_set(bool active) {
 
     if (active) {
         if (output_status_widget.obj)
-            lv_obj_add_flag(zmk_widget_output_status_obj(&output_status_widget), LV_OBJ_FLAG_HIDDEN);
+            zmk_widget_output_status_set_hidden(&output_status_widget, true);
 #if IS_ENABLED(CONFIG_ZMK_BATTERY)
         if (dongle_battery_status_widget.obj)
-            lv_obj_add_flag(zmk_widget_dongle_battery_status_obj(&dongle_battery_status_widget), LV_OBJ_FLAG_HIDDEN);
+            zmk_widget_dongle_battery_status_set_hidden(&dongle_battery_status_widget, true);
 #endif
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_LAYER)
         if (layer_status_widget.obj) {
@@ -81,10 +81,10 @@ void zmk_display_timeout_overlay_set(bool active) {
 #endif
     } else {
         if (output_status_widget.obj)
-            lv_obj_clear_flag(zmk_widget_output_status_obj(&output_status_widget), LV_OBJ_FLAG_HIDDEN);
+            zmk_widget_output_status_set_hidden(&output_status_widget, false);
 #if IS_ENABLED(CONFIG_ZMK_BATTERY)
         if (dongle_battery_status_widget.obj)
-            lv_obj_clear_flag(zmk_widget_dongle_battery_status_obj(&dongle_battery_status_widget), LV_OBJ_FLAG_HIDDEN);
+            zmk_widget_dongle_battery_status_set_hidden(&dongle_battery_status_widget, false);
 #endif
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_LAYER)
         zmk_widget_layer_status_set_overlay_active(false);
@@ -182,16 +182,16 @@ void zmk_display_compact_set_modifier_view(bool enabled) {
     ARG_UNUSED(enabled);
     if (output_status_widget.obj) {
         if (timeout_overlay_active)
-            lv_obj_add_flag(zmk_widget_output_status_obj(&output_status_widget), LV_OBJ_FLAG_HIDDEN);
+            zmk_widget_output_status_set_hidden(&output_status_widget, true);
         else
-            lv_obj_clear_flag(zmk_widget_output_status_obj(&output_status_widget), LV_OBJ_FLAG_HIDDEN);
+            zmk_widget_output_status_set_hidden(&output_status_widget, false);
     }
 #if IS_ENABLED(CONFIG_ZMK_BATTERY)
     if (dongle_battery_status_widget.obj) {
         if (timeout_overlay_active)
-            lv_obj_add_flag(zmk_widget_dongle_battery_status_obj(&dongle_battery_status_widget), LV_OBJ_FLAG_HIDDEN);
+            zmk_widget_dongle_battery_status_set_hidden(&dongle_battery_status_widget, true);
         else
-            lv_obj_clear_flag(zmk_widget_dongle_battery_status_obj(&dongle_battery_status_widget), LV_OBJ_FLAG_HIDDEN);
+            zmk_widget_dongle_battery_status_set_hidden(&dongle_battery_status_widget, false);
     }
 #endif
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_MODIFIERS)
@@ -227,7 +227,9 @@ lv_obj_t *zmk_display_status_screen() {
     lv_obj_add_style(screen_root, &global_style, LV_PART_MAIN);
 
     zmk_widget_output_status_init(&output_status_widget, screen_root);
+#if !IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
     lv_obj_align(zmk_widget_output_status_obj(&output_status_widget), LV_ALIGN_TOP_LEFT, 0, 0);
+#endif
     zmk_widget_timeout_status_init(&timeout_status_widget, screen_root);
 
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_WPM)
@@ -270,7 +272,9 @@ lv_obj_t *zmk_display_status_screen() {
 #endif
 #if IS_ENABLED(CONFIG_ZMK_BATTERY)
     zmk_widget_dongle_battery_status_init(&dongle_battery_status_widget, screen_root);
+#if !IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
     lv_obj_align(zmk_widget_dongle_battery_status_obj(&dongle_battery_status_widget), LV_ALIGN_TOP_RIGHT, 0, 0);
+#endif
 #endif
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
     zmk_display_compact_set_modifier_view(false);

@@ -118,13 +118,13 @@ static void change_size_object(void *obj, int32_t from, int32_t to) {
     lv_anim_start(&a);
 }
 
-static void set_status_symbol(lv_obj_t *widget, struct output_status_state state) {
-    lv_obj_t *usb = lv_obj_get_child(widget, output_symbol_usb);
-    lv_obj_t *usb_hid_status = lv_obj_get_child(widget, output_symbol_usb_hid_status);
-    lv_obj_t *bt = lv_obj_get_child(widget, output_symbol_bt);
-    lv_obj_t *bt_number = lv_obj_get_child(widget, output_symbol_bt_number);
-    lv_obj_t *bt_status = lv_obj_get_child(widget, output_symbol_bt_status);
-    lv_obj_t *selection_line = lv_obj_get_child(widget, output_symbol_selection_line);
+static void set_status_symbol(struct zmk_widget_output_status *widget, struct output_status_state state) {
+    lv_obj_t *usb = widget->usb;
+    lv_obj_t *usb_hid_status = widget->usb_hid_status;
+    lv_obj_t *bt = widget->bt;
+    lv_obj_t *bt_number = widget->bt_number;
+    lv_obj_t *bt_status = widget->bt_status;
+    lv_obj_t *selection_line = widget->selection_line;
 
     enum zmk_transport transport = state.selected_endpoint.transport;
     bool connected = transport != ZMK_TRANSPORT_NONE;
@@ -184,7 +184,7 @@ static void set_status_symbol(lv_obj_t *widget, struct output_status_state state
 
 static void output_status_update_cb(struct output_status_state state) {
     struct zmk_widget_output_status *widget;
-    SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) { set_status_symbol(widget->obj, state); }
+    SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) { set_status_symbol(widget, state); }
 }
 
 ZMK_DISPLAY_WIDGET_LISTENER(widget_output_status, struct output_status_state,
@@ -196,33 +196,31 @@ ZMK_SUBSCRIPTION(widget_output_status, zmk_ble_active_profile_changed);
 ZMK_SUBSCRIPTION(widget_output_status, zmk_usb_conn_state_changed);
 
 int zmk_widget_output_status_init(struct zmk_widget_output_status *widget, lv_obj_t *parent) {
-    widget->obj = lv_obj_create(parent);
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
-    /* Force manual positioning: a theme-provided flex/grid layout overrides
-     * lv_obj_set_pos() and packs the icons together. */
-    lv_obj_set_layout(widget->obj, LV_LAYOUT_NONE);
-    /* This is a coordinate container, not a themed panel. Remove default
-     * theme padding/border so child positions map directly to screen pixels. */
-    lv_obj_remove_style_all(widget->obj);
-    lv_obj_set_style_pad_all(widget->obj, 0, LV_PART_MAIN);
-    lv_obj_set_style_border_width(widget->obj, 0, LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(widget->obj, LV_OPA_TRANSP, LV_PART_MAIN);
+    /* Compact indicators are direct children of the physical screen. */
+    widget->obj = parent;
+#else
+    widget->obj = lv_obj_create(parent);
 #endif
-
     lv_obj_t *usb = lv_img_create(widget->obj);
+    widget->usb = usb;
     lv_img_set_src(usb, &sym_usb);
     lv_obj_t *usb_hid_status = lv_img_create(widget->obj);
-
+    widget->usb_hid_status = usb_hid_status;
     lv_obj_t *bt = lv_img_create(widget->obj);
+    widget->bt = bt;
     lv_img_set_src(bt, &sym_bt);
     lv_obj_t *bt_number = lv_img_create(widget->obj);
+    widget->bt_number = bt_number;
     lv_obj_t *bt_status = lv_img_create(widget->obj);
+    widget->bt_status = bt_status;
 
     static lv_style_t style_line;
     lv_style_init(&style_line);
     lv_style_set_line_width(&style_line, 2);
 
     lv_obj_t *selection_line = lv_line_create(widget->obj);
+    widget->selection_line = selection_line;
     lv_line_set_points(selection_line, selection_line_points, 2);
     lv_obj_add_style(selection_line, &style_line, 0);
 
@@ -233,14 +231,7 @@ int zmk_widget_output_status_init(struct zmk_widget_output_status *widget, lv_ob
      * group made USB and Bluetooth share one row, rather than the two left
      * corners. Keep the original full-size icon artwork.
      */
-    /* Use the full physical panel as the coordinate space. A narrow
-     * 18x32 child viewport can be clipped or laid out as a compact group by
-     * LVGL/theme handling. Full-screen bounds make all positions absolute
-     * panel coordinates and keep the two indicators in opposite corners. */
-    lv_obj_set_size(widget->obj, 128, 32);
-    lv_obj_set_pos(widget->obj, 0, 0);
-    lv_obj_set_scrollbar_mode(widget->obj, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_clear_flag(widget->obj, LV_OBJ_FLAG_SCROLLABLE);
+    /* Child coordinates below are absolute screen coordinates. */
     lv_obj_set_pos(usb, 0, 0);
     lv_obj_set_pos(usb_hid_status, 11, 2);
     lv_obj_set_pos(bt, 0, 18);
@@ -265,4 +256,20 @@ int zmk_widget_output_status_init(struct zmk_widget_output_status *widget, lv_ob
 
 lv_obj_t *zmk_widget_output_status_obj(struct zmk_widget_output_status *widget) {
     return widget->obj;
+}
+
+void zmk_widget_output_status_set_hidden(struct zmk_widget_output_status *widget, bool hidden) {
+    if (widget == NULL) return;
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
+    lv_obj_t *items[] = { widget->usb, widget->usb_hid_status, widget->bt,
+                          widget->bt_number, widget->bt_status };
+    for (size_t i = 0; i < ARRAY_SIZE(items); i++) {
+        if (items[i] == NULL) continue;
+        if (hidden) lv_obj_add_flag(items[i], LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_clear_flag(items[i], LV_OBJ_FLAG_HIDDEN);
+    }
+#else
+    if (hidden) lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_clear_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
+#endif
 }

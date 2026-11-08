@@ -330,48 +330,55 @@ ZMK_SUBSCRIPTION(widget_dongle_battery_status, zmk_usb_conn_state_changed);
 #endif /* IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_DONGLE_BATTERY) */
 
 int zmk_widget_dongle_battery_status_init(struct zmk_widget_dongle_battery_status *widget, lv_obj_t *parent) {
-    widget->obj = lv_obj_create(parent);
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
-    lv_obj_set_layout(widget->obj, LV_LAYOUT_NONE);
-    /* Battery coordinates are absolute within this transparent container. */
-    lv_obj_remove_style_all(widget->obj);
-    lv_obj_set_style_pad_all(widget->obj, 0, LV_PART_MAIN);
-    lv_obj_set_style_border_width(widget->obj, 0, LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(widget->obj, LV_OPA_TRANSP, LV_PART_MAIN);
+    /* Compact battery items are direct screen children, not a clipped panel. */
+    widget->obj = parent;
+    lv_obj_t *battery_parent = parent;
+#else
+    widget->obj = lv_obj_create(parent);
+    lv_obj_t *battery_parent = widget->obj;
+#endif
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
+    lv_obj_set_size(battery_parent, 128, 32);
+#else
+    lv_obj_set_size(battery_parent, 78, 24);
 #endif
 
-    /*
-     * Fixed battery layout:
-     *   - dongle field begins near the centre of the OLED
-     *   - left/right half percentages stay in the original far-right stack
-     *
-     * Explicit coordinates avoid the clipping/regression introduced by
-     * nesting the half labels around the new dongle field.
-     */
-    lv_obj_set_size(widget->obj, 78, 24);
-
     for (int i = 0; i < ZMK_SPLIT_BLE_PERIPHERAL_COUNT + SOURCE_OFFSET; i++) {
-        lv_obj_t *image_canvas = lv_canvas_create(widget->obj);
-        lv_obj_t *battery_label = lv_label_create(widget->obj);
-        lv_obj_t *charge_canvas = lv_canvas_create(widget->obj);
+        lv_obj_t *image_canvas = lv_canvas_create(battery_parent);
+        lv_obj_t *battery_label = lv_label_create(battery_parent);
+        lv_obj_t *charge_canvas = lv_canvas_create(battery_parent);
 
         lv_canvas_set_buffer(image_canvas, battery_image_buffer[i], 5, 8, LV_COLOR_FORMAT_L8);
         lv_canvas_set_buffer(charge_canvas, charge_image_buffer[i], 5, 8, LV_COLOR_FORMAT_L8);
         draw_charge_flash(charge_canvas);
 
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
         if (SOURCE_OFFSET && i == 0) {
-            /* Dongle: centre-side field. */
+            /* Track central battery events without drawing a dongle battery. */
+            lv_obj_set_pos(image_canvas, -8, -8);
+            lv_obj_set_pos(charge_canvas, -8, -8);
+            lv_obj_set_pos(battery_label, -24, -8);
+        } else {
+            const int row = i - SOURCE_OFFSET;
+            const int y = row == 0 ? 4 : 20;
+            lv_obj_set_pos(battery_label, 97, y - 2);
+            lv_obj_set_pos(image_canvas, 121, y);
+            lv_obj_set_pos(charge_canvas, 121, y);
+        }
+#else
+        if (SOURCE_OFFSET && i == 0) {
             lv_obj_set_pos(image_canvas, 0, 4);
             lv_obj_set_pos(charge_canvas, 0, 4);
             lv_obj_set_pos(battery_label, 8, 2);
         } else {
-            /* Split halves: preserve a stable right-side percentage stack. */
             int peripheral_index = i - SOURCE_OFFSET;
             int y = peripheral_index * 10;
             lv_obj_set_pos(battery_label, 43, y - 1);
             lv_obj_set_pos(image_canvas, 72, y);
             lv_obj_set_pos(charge_canvas, 72, y);
         }
+#endif
 
         lv_obj_add_flag(image_canvas, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(battery_label, LV_OBJ_FLAG_HIDDEN);
@@ -393,4 +400,22 @@ int zmk_widget_dongle_battery_status_init(struct zmk_widget_dongle_battery_statu
 
 lv_obj_t *zmk_widget_dongle_battery_status_obj(struct zmk_widget_dongle_battery_status *widget) {
     return widget->obj;
+}
+
+void zmk_widget_dongle_battery_status_set_hidden(struct zmk_widget_dongle_battery_status *widget, bool hidden) {
+    if (widget == NULL) return;
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
+    for (size_t i = 0; i < ARRAY_SIZE(battery_objects); i++) {
+        lv_obj_t *items[] = { battery_objects[i].symbol, battery_objects[i].label,
+                              battery_objects[i].charge_icon };
+        for (size_t j = 0; j < ARRAY_SIZE(items); j++) {
+            if (items[j] == NULL) continue;
+            if (hidden) lv_obj_add_flag(items[j], LV_OBJ_FLAG_HIDDEN);
+            else lv_obj_clear_flag(items[j], LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+#else
+    if (hidden) lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_clear_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
+#endif
 }
