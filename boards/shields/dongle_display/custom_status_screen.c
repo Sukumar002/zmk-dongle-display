@@ -236,7 +236,12 @@ lv_obj_t *zmk_display_status_screen() {
 #endif
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_MODIFIERS)
     zmk_widget_modifiers_init(&modifiers_widget, screen_root);
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
+    lv_obj_align(zmk_widget_modifiers_obj(&modifiers_widget), LV_ALIGN_CENTER, 0, 0);
     lv_obj_add_flag(zmk_widget_modifiers_obj(&modifiers_widget), LV_OBJ_FLAG_HIDDEN);
+#else
+    lv_obj_align(zmk_widget_modifiers_obj(&modifiers_widget), LV_ALIGN_BOTTOM_LEFT, 0, 0);
+#endif
 #if IS_ENABLED(CONFIG_ZMK_HID_INDICATORS) && !IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
     zmk_widget_hid_indicators_init(&hid_indicators_widget, screen_root);
     lv_obj_align_to(zmk_widget_hid_indicators_obj(&hid_indicators_widget), zmk_widget_modifiers_obj(&modifiers_widget), LV_ALIGN_OUT_TOP_LEFT, 0, -2);
@@ -247,6 +252,8 @@ lv_obj_t *zmk_display_status_screen() {
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
     lv_obj_align(zmk_widget_layer_status_obj(&layer_status_widget), LV_ALIGN_CENTER, 0, 0);
     zmk_widget_layer_status_set_base_text_enabled(false);
+#else
+    lv_obj_align(zmk_widget_layer_status_obj(&layer_status_widget), LV_ALIGN_BOTTOM_RIGHT, 0, 0);
 #endif
 #endif
 #if IS_ENABLED(CONFIG_ZMK_BATTERY)
