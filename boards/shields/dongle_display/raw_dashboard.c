@@ -29,6 +29,7 @@
 #include <zmk/hid.h>
 #include <zmk/hid_indicators.h>
 #include <zmk/events/hid_indicators_changed.h>
+#include <zmk/events/runtime_timeout_changed.h>
 #include <dt-bindings/zmk/hid_indicators.h>
 #include <zmk/keymap.h>
 #include <dt-bindings/zmk/modifiers.h>
@@ -58,10 +59,14 @@ static uint16_t layer_scroll_px;
 static struct k_work_delayable layer_scroll_work;
 static struct k_work_delayable layout_probe_work;
 static struct k_work_delayable layout_flash_work;
+static bool timeout_feedback_active;
+static enum zmk_runtime_timeout_kind timeout_feedback_kind;
+static uint32_t timeout_feedback_ms;
+static struct k_work_delayable timeout_feedback_work;
 
-#if DT_NODE_EXISTS(DT_NODELABEL(layout_shift_map_gui_alt))
+#if DT_NODE_EXISTS(DT_NODELABEL(layout_shift_map_gui_alt_shared))
 static const struct device *const hana_layout_shift_map =
-    DEVICE_DT_GET(DT_NODELABEL(layout_shift_map_gui_alt));
+    DEVICE_DT_GET(DT_NODELABEL(layout_shift_map_gui_alt_shared));
 struct hana_layout_shift_map_data_view {
     zmk_mod_flags_t modifier_map[8];
     bool active;
@@ -70,7 +75,7 @@ struct hana_layout_shift_map_data_view {
 
 static bool read_layout_windows_mode(void)
 {
-#if DT_NODE_EXISTS(DT_NODELABEL(layout_shift_map_gui_alt))
+#if DT_NODE_EXISTS(DT_NODELABEL(layout_shift_map_gui_alt_shared))
     if (!device_is_ready(hana_layout_shift_map)) return false;
     const struct hana_layout_shift_map_data_view *data = hana_layout_shift_map->data;
     return data->active;
@@ -420,6 +425,25 @@ static void draw_layer_screen(void)
     }
 }
 
+static void draw_timeout_feedback(void)
+{
+    const char *title = timeout_feedback_kind == ZMK_RUNTIME_TIMEOUT_DISPLAY
+                            ? "DISPLAY" : "HALF SLEEP";
+    char value[16];
+    if (timeout_feedback_ms == 0) {
+        snprintk(value, sizeof(value), "NEVER");
+    } else if (timeout_feedback_kind == ZMK_RUNTIME_TIMEOUT_DISPLAY) {
+        snprintk(value, sizeof(value), "%us", timeout_feedback_ms / 1000);
+    } else {
+        snprintk(value, sizeof(value), "%um", timeout_feedback_ms / 60000);
+    }
+
+    const int title_width = (int)strlen(title) * 12;
+    const int value_width = (int)strlen(value) * 12;
+    draw_large_text(title, (OLED_W - title_width) / 2, 1);
+    draw_large_text(value, (OLED_W - value_width) / 2, 17);
+}
+
 static void draw_modifier_family(void)
 {
     const uint8_t masks[4] = {
@@ -453,6 +477,12 @@ static void draw_modifier_family(void)
 static int dashboard_render(void)
 {
     memset(framebuffer, 0, sizeof(framebuffer));
+
+    /* Timeout feedback takes priority over layers and dashboard views. */
+    if (timeout_feedback_active) {
+        draw_timeout_feedback();
+        return dashboard_flush();
+    }
 
     /* Any active non-base layer owns the screen until it is released. */
     if (active_layer != 0) {
@@ -514,6 +544,13 @@ static void layer_scroll_handler(struct k_work *work)
     (void)k_work_reschedule(&layer_scroll_work, K_MSEC(35));
 }
 
+static void timeout_feedback_timeout_handler(struct k_work *work)
+{
+    ARG_UNUSED(work);
+    timeout_feedback_active = false;
+    (void)dashboard_render();
+}
+
 static void layout_flash_timeout_handler(struct k_work *work)
 {
     ARG_UNUSED(work);
@@ -569,6 +606,26 @@ static void refresh_output_state(void)
 
 static int dashboard_listener(const zmk_event_t *eh)
 {
+    const struct zmk_runtime_timeout_changed *timeout =
+        as_zmk_runtime_timeout_changed(eh);
+    if (timeout != NULL) {
+        if (timeout->feedback == ZMK_RUNTIME_TIMEOUT_FEEDBACK_HIDE) {
+            timeout_feedback_active = false;
+            (void)k_work_cancel_delayable(&timeout_feedback_work);
+        } else {
+            timeout_feedback_active = true;
+            timeout_feedback_kind = timeout->kind;
+            timeout_feedback_ms = timeout->timeout_ms;
+            if (timeout->feedback == ZMK_RUNTIME_TIMEOUT_FEEDBACK_TIMED) {
+                (void)k_work_reschedule(&timeout_feedback_work, K_MSEC(3000));
+            } else {
+                (void)k_work_cancel_delayable(&timeout_feedback_work);
+            }
+        }
+        (void)dashboard_render();
+        return ZMK_EV_EVENT_BUBBLE;
+    }
+
     if (as_zmk_layer_state_changed(eh) != NULL) {
         refresh_layer_state();
         return ZMK_EV_EVENT_BUBBLE;
@@ -617,6 +674,7 @@ ZMK_SUBSCRIPTION(hana_128x32_dashboard, zmk_layer_state_changed);
 ZMK_SUBSCRIPTION(hana_128x32_dashboard, zmk_keycode_state_changed);
 ZMK_SUBSCRIPTION(hana_128x32_dashboard, zmk_position_state_changed);
 ZMK_SUBSCRIPTION(hana_128x32_dashboard, zmk_hid_indicators_changed);
+ZMK_SUBSCRIPTION(hana_128x32_dashboard, zmk_runtime_timeout_changed);
 
 static int hana_128x32_dashboard_init(void)
 {
@@ -642,6 +700,7 @@ static int hana_128x32_dashboard_init(void)
     k_work_init_delayable(&layer_scroll_work, layer_scroll_handler);
     k_work_init_delayable(&layout_probe_work, layout_probe_handler);
     k_work_init_delayable(&layout_flash_work, layout_flash_timeout_handler);
+    k_work_init_delayable(&timeout_feedback_work, timeout_feedback_timeout_handler);
     layout_windows_mode = read_layout_windows_mode();
     lock_indicators = zmk_hid_indicators_get_current_profile();
     refresh_output_state();
