@@ -317,6 +317,48 @@ static void draw_battery_row(int y, char side, uint8_t level)
     draw_battery_icon(108, y, level);
 }
 
+/* Exact 14x14 modifier glyphs from the established Hana 128x64
+ * modifiers_sym.c assets. Each row is two bytes, MSB first. */
+static const uint8_t modifier_control_bits[28] = {
+    0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x07, 0x80, 0x0c, 0xc0, 0x18, 0x60, 0x30, 0x30,
+    0x20, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+
+static const uint8_t modifier_shift_bits[28] = {
+    0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x07, 0x80, 0x0c, 0xc0, 0x18, 0x60, 0x30, 0x30,
+    0x78, 0x78, 0x08, 0x40, 0x08, 0x40, 0x08, 0x40, 0x0f, 0xc0, 0x00, 0x00, 0x00, 0x00
+};
+
+static const uint8_t modifier_opt_bits[28] = {
+    0x00, 0x00, 0x00, 0x00, 0x3c, 0xe0, 0x3c, 0xe0, 0x06, 0x00, 0x06, 0x00, 0x06, 0x00,
+    0x03, 0x00, 0x03, 0x00, 0x03, 0x00, 0x01, 0xe0, 0x01, 0xe0, 0x00, 0x00, 0x00, 0x00
+};
+
+static const uint8_t modifier_cmd_bits[28] = {
+    0x00, 0x00, 0x00, 0x00, 0x18, 0x60, 0x24, 0x90, 0x24, 0x90, 0x1f, 0xe0, 0x04, 0x80,
+    0x04, 0x80, 0x1f, 0xe0, 0x24, 0x90, 0x24, 0x90, 0x18, 0x60, 0x00, 0x00, 0x00, 0x00
+};
+
+static const uint8_t modifier_alt_bits[28] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x32, 0xf8, 0x4a, 0x20, 0x4a, 0x20,
+    0x7a, 0x20, 0x4a, 0x20, 0x4b, 0xa0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+
+static const uint8_t modifier_win_bits[28] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x0b, 0xf0, 0x3b, 0xf0, 0x3b, 0xf0, 0x3b, 0xf0,
+    0x00, 0x00, 0x3b, 0xf0, 0x3b, 0xf0, 0x3b, 0xf0, 0x03, 0xf0, 0x00, 0x30, 0x00, 0x00
+};
+
+static void draw_modifier_bitmap(int x, int y, const uint8_t *bits, bool inverted)
+{
+    for (int row = 0; row < 14; row++) {
+        for (int col = 0; col < 14; col++) {
+            const bool set = (bits[row * 2 + col / 8] & (0x80u >> (col & 7))) != 0;
+            set_pixel(x + col, y + row, inverted ? !set : set);
+        }
+    }
+}
+
 static int dashboard_flush(void)
 {
     const struct display_buffer_descriptor desc = {
@@ -342,26 +384,30 @@ static void draw_layer_screen(void)
 
 static void draw_modifier_family(void)
 {
-    static const char *const mac_names[4] = { "CTRL", "OPT", "CMD", "SHIFT" };
-    static const char *const win_names[4] = { "CTRL", "WIN", "ALT", "SHIFT" };
-    const char *const *names = layout_windows_mode ? win_names : mac_names;
     const uint8_t masks[4] = {
         MOD_LCTL | MOD_RCTL,
         layout_windows_mode ? (MOD_LGUI | MOD_RGUI) : (MOD_LALT | MOD_RALT),
         layout_windows_mode ? (MOD_LALT | MOD_RALT) : (MOD_LGUI | MOD_RGUI),
         MOD_LSFT | MOD_RSFT,
     };
+    const uint8_t *const mac_icons[4] = {
+        modifier_control_bits, modifier_opt_bits, modifier_cmd_bits, modifier_shift_bits,
+    };
+    const uint8_t *const win_icons[4] = {
+        modifier_control_bits, modifier_win_bits, modifier_alt_bits, modifier_shift_bits,
+    };
+    const uint8_t *const *icons = layout_windows_mode ? win_icons : mac_icons;
     const uint8_t active = zmk_hid_get_explicit_mods();
 
+    /* Four 32px slots, each holding the original 14x14 Hana glyph. */
     for (int i = 0; i < 4; i++) {
-        const int x = i * 32;
-        const int text_x = x + (32 - (int)strlen(names[i]) * 6) / 2;
-        if ((active & masks[i]) != 0) {
-            fill_rect(x, 0, 32, OLED_H);
-            draw_text_color(names[i], text_x, 12, false);
-        } else {
-            outline_rect(x, 0, 32, OLED_H);
-            draw_text(names[i], text_x, 12);
+        const int x = i * 32 + 9;
+        const bool pressed = (active & masks[i]) != 0;
+        draw_modifier_bitmap(x, 8, icons[i], pressed);
+        if (pressed) {
+            /* A short underline reinforces the inverted icon state. */
+            hline(x, 25, 14);
+            hline(x, 26, 14);
         }
     }
 }
@@ -376,10 +422,12 @@ static int dashboard_render(void)
         return dashboard_flush();
     }
 
-    /* Show a short MACOS/WINDOWS confirmation after layout shift. */
+    /* Brief full-screen OS confirmation, matching the bordered layer badge
+     * treatment used by the established Hana 128x64 status UI. */
     if (layout_flash_active) {
-        const char *label = layout_windows_mode ? "WINDOWS" : "MACOS";
+        const char *label = layout_windows_mode ? "WIN" : "MAC";
         const int width = (int)strlen(label) * 12;
+        outline_rect(1, 1, OLED_W - 2, OLED_H - 2);
         draw_large_text(label, (OLED_W - width) / 2, (OLED_H - 14) / 2);
         return dashboard_flush();
     }
