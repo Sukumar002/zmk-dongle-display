@@ -2,8 +2,8 @@
  * SPDX-License-Identifier: MIT
  *
  * Hana 128x32 base status screen.
- * This renderer is the sole OLED writer in the raw-dashboard build:
- * no LVGL screen, canvas, or ZMK display widget is initialized.
+ * The raw renderer is the sole OLED writer in this build; no LVGL widgets
+ * or legacy base-view code are initialized.
  */
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
@@ -28,7 +28,6 @@ LOG_MODULE_REGISTER(hana_128x32_dashboard, LOG_LEVEL_INF);
 #define OLED_W 128
 #define OLED_H 32
 #define FB_SIZE (OLED_W * OLED_H / 8)
-#define HALF_COUNT CONFIG_ZMK_SPLIT_BLE_CENTRAL_PERIPHERALS
 
 static const struct device *const oled = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
 static uint8_t framebuffer[FB_SIZE];
@@ -36,6 +35,27 @@ static uint8_t half_level[2] = { 0xff, 0xff };
 static bool usb_ready;
 static bool bt_connected;
 static uint8_t bt_profile;
+
+/* 5x7 column font. Bit zero is the top row. */
+static const uint8_t font[][5] = {
+    [0]  = {0x3e,0x51,0x49,0x45,0x3e}, /* 0 */
+    [1]  = {0x00,0x42,0x7f,0x40,0x00},
+    [2]  = {0x42,0x61,0x51,0x49,0x46},
+    [3]  = {0x21,0x41,0x45,0x4b,0x31},
+    [4]  = {0x18,0x14,0x12,0x7f,0x10},
+    [5]  = {0x27,0x45,0x45,0x45,0x39},
+    [6]  = {0x3c,0x4a,0x49,0x49,0x30},
+    [7]  = {0x01,0x71,0x09,0x05,0x03},
+    [8]  = {0x36,0x49,0x49,0x49,0x36},
+    [9]  = {0x06,0x49,0x49,0x29,0x1e},
+    ['L' - 32] = {0x7f,0x40,0x40,0x40,0x40},
+    ['R' - 32] = {0x7f,0x09,0x19,0x29,0x46},
+    ['U' - 32] = {0x3f,0x40,0x40,0x40,0x3f},
+    ['S' - 32] = {0x26,0x49,0x49,0x49,0x32},
+    ['B' - 32] = {0x7f,0x49,0x49,0x49,0x36},
+    ['%' - 32] = {0x63,0x13,0x08,0x64,0x63},
+    ['-' - 32] = {0x08,0x08,0x08,0x08,0x08},
+};
 
 static void pixel(int x, int y)
 {
@@ -53,106 +73,101 @@ static void vline(int x, int y, int height)
     for (int i = 0; i < height; i++) pixel(x, y + i);
 }
 
-/* Compact 3x5 alphanumeric font: digits, L/R/U/S/B and dash/percent. */
-static const uint8_t glyphs[][3] = {
-    {0x1f,0x11,0x1f}, {0x00,0x1f,0x00}, {0x1d,0x15,0x17},
-    {0x15,0x15,0x1f}, {0x07,0x04,0x1f}, {0x17,0x15,0x1d},
-    {0x1f,0x15,0x1d}, {0x01,0x01,0x1f}, {0x1f,0x15,0x1f},
-    {0x17,0x15,0x1f}, /* 0..9 */
-    {0x1f,0x10,0x10}, /* L */
-    {0x1f,0x05,0x1a}, /* R */
-    {0x1f,0x05,0x1f}, /* U */
-    {0x1f,0x05,0x1f}, /* S */
-    {0x1f,0x05,0x02}, /* B */
-    {0x04,0x04,0x04}, /* - */
-    {0x19,0x04,0x13}, /* % */
-};
-static int glyph_index(char c)
-{
-    if (c >= '0' && c <= '9') return c - '0';
-    switch (c) {
-    case 'L': return 10; case 'R': return 11; case 'U': return 12;
-    case 'S': return 13; case 'B': return 14; case '-': return 15;
-    case '%': return 16; default: return -1;
-    }
-}
 static void draw_text(const char *s, int x, int y)
 {
     while (*s) {
-        int g = glyph_index(*s++);
-        if (g >= 0) {
-            for (int col = 0; col < 3; col++)
-                for (int row = 0; row < 5; row++)
-                    if (glyphs[g][col] & BIT(row)) pixel(x + col, y + row);
+        unsigned char c = (unsigned char)*s++;
+        if (c >= '0' && c <= '9') {
+            const uint8_t *g = font[c - '0'];
+            for (int col = 0; col < 5; col++)
+                for (int row = 0; row < 7; row++)
+                    if (g[col] & BIT(row)) pixel(x + col, y + row);
+        } else if (c >= 32 && c < 128) {
+            const uint8_t *g = font[c - 32];
+            for (int col = 0; col < 5; col++)
+                for (int row = 0; row < 7; row++)
+                    if (g[col] & BIT(row)) pixel(x + col, y + row);
         }
-        x += 4;
+        x += 6;
     }
 }
 
-static void draw_usb_icon(void)
+/* USB trident, 9x11, with a recognisable three-ended silhouette. */
+static void draw_usb_icon(int x, int y)
 {
-    /* USB trident, deliberately simple and legible at 8x10. */
-    vline(5, 1, 9);
-    hline(2, 2, 7);
-    pixel(5, 0); pixel(4, 1); pixel(6, 1);
-    pixel(2, 2); pixel(1, 3); pixel(3, 3);
-    pixel(8, 2); pixel(7, 3); pixel(9, 3);
-    pixel(5, 9); pixel(4, 8); pixel(6, 8);
+    vline(x + 4, y + 1, 9);
+    vline(x + 1, y + 3, 3);
+    vline(x + 7, y + 3, 3);
+    hline(x + 1, y + 3, 7);
+    pixel(x + 4, y); pixel(x + 3, y + 1); pixel(x + 5, y + 1);
+    pixel(x, y + 6); pixel(x + 2, y + 6);
+    pixel(x + 6, y + 6); pixel(x + 8, y + 6);
+    pixel(x + 4, y + 10); pixel(x + 3, y + 9); pixel(x + 5, y + 9);
 }
 
-static void draw_bluetooth_icon(void)
+/* Bluetooth rune, 9x13. */
+static void draw_bluetooth_icon(int x, int y)
 {
-    /* Standard Bluetooth rune, 8x12. */
-    vline(5, 19, 12);
-    pixel(5,19); pixel(6,20); pixel(7,21); pixel(6,22);
-    pixel(5,23); pixel(6,24); pixel(7,25); pixel(6,26);
-    pixel(5,30);
-    pixel(2,21); pixel(3,22); pixel(4,23);
-    pixel(2,28); pixel(3,27); pixel(4,26);
+    vline(x + 4, y, 13);
+    pixel(x + 4, y); pixel(x + 5, y + 1); pixel(x + 7, y + 3);
+    pixel(x + 5, y + 5); pixel(x + 4, y + 6);
+    pixel(x + 5, y + 7); pixel(x + 7, y + 9);
+    pixel(x + 5, y + 11); pixel(x + 4, y + 12);
+    pixel(x + 1, y + 2); pixel(x + 2, y + 3); pixel(x + 3, y + 4);
+    pixel(x + 1, y + 10); pixel(x + 2, y + 9); pixel(x + 3, y + 8);
+}
+
+/* Each battery is 17x10, with a substantial six-pixel charge window. */
+static void draw_battery_icon(int x, int y, uint8_t level)
+{
+    hline(x, y, 14);
+    hline(x, y + 9, 14);
+    vline(x, y, 10);
+    vline(x + 13, y, 10);
+    vline(x + 15, y + 3, 4);
+    if (level != 0xff) {
+        int fill = (MIN(level, 100) * 10 + 50) / 100;
+        for (int xx = x + 2; xx < x + 2 + fill; xx++)
+            for (int yy = y + 2; yy < y + 8; yy++) pixel(xx, yy);
+    }
 }
 
 static void draw_battery_row(int y, char side, uint8_t level)
 {
-    char label[5];
+    char label[6];
     if (level == 0xff) {
         label[0] = side; label[1] = '-'; label[2] = '-'; label[3] = 0;
     } else {
         unsigned int value = MIN(level, 100);
         if (value == 100) {
-            label[0] = side; label[1] = '1'; label[2] = '0'; label[3] = '0';
-            label[4] = 0;
+            label[0] = side; label[1] = '1'; label[2] = '0';
+            label[3] = '0'; label[4] = '%'; label[5] = 0;
         } else {
             label[0] = side; label[1] = '0' + (value / 10);
             label[2] = '0' + (value % 10); label[3] = '%'; label[4] = 0;
         }
     }
-    draw_text(label, 92, y + 2);
-
-    /* Battery outline and terminal; fill is proportional to charge. */
-    hline(116, y, 9); hline(116, y + 8, 9);
-    vline(116, y, 9); vline(124, y, 9);
-    vline(125, y + 2, 5);
-    if (level != 0xff) {
-        int fill = (MIN(level, 100) * 6) / 100;
-        for (int x = 118; x < 118 + fill; x++)
-            for (int yy = y + 2; yy < y + 7; yy++) pixel(x, yy);
-    }
+    draw_text(label, 70, y + 1);
+    draw_battery_icon(108, y, level);
 }
 
 static int dashboard_render(void)
 {
     memset(framebuffer, 0, sizeof(framebuffer));
 
-    draw_usb_icon();
-    if (usb_ready) pixel(10, 1);
-    draw_text("USB", 14, 3);
+    draw_usb_icon(3, 2);
+    draw_text("USB", 16, 4);
+    if (usb_ready) {
+        pixel(11, 4); pixel(12, 3); pixel(12, 5);
+    }
 
-    draw_bluetooth_icon();
-    if (bt_connected) pixel(10, 20);
-    draw_text("B", 14, 22);
-    draw_text(bt_profile < 9 ? (bt_profile == 0 ? "1" :
+    draw_bluetooth_icon(3, 18);
+    draw_text(bt_profile < 5 ? (bt_profile == 0 ? "1" :
               bt_profile == 1 ? "2" : bt_profile == 2 ? "3" :
-              bt_profile == 3 ? "4" : "5") : "1", 19, 22);
+              bt_profile == 3 ? "4" : "5") : "1", 17, 21);
+    if (bt_connected) {
+        pixel(26, 21); pixel(26, 22); pixel(26, 23);
+    }
 
     draw_battery_row(2, 'L', half_level[0]);
     draw_battery_row(18, 'R', half_level[1]);
