@@ -92,29 +92,46 @@ static void draw_text(const char *s, int x, int y)
     }
 }
 
-/* USB trident, 9x11, with a recognisable three-ended silhouette. */
+/* 9x14 USB and Bluetooth artwork borrowed from the established 128x64 UI. */
 static void draw_usb_icon(int x, int y)
 {
-    vline(x + 4, y + 1, 9);
-    vline(x + 1, y + 3, 3);
-    vline(x + 7, y + 3, 3);
-    hline(x + 1, y + 3, 7);
-    pixel(x + 4, y); pixel(x + 3, y + 1); pixel(x + 5, y + 1);
-    pixel(x, y + 6); pixel(x + 2, y + 6);
-    pixel(x + 6, y + 6); pixel(x + 8, y + 6);
-    pixel(x + 4, y + 10); pixel(x + 3, y + 9); pixel(x + 5, y + 9);
+    vline(x + 4, y + 1, 12);
+    pixel(x + 0, y + 1); pixel(x + 1, y + 0); pixel(x + 2, y + 0);
+    pixel(x + 3, y + 1); pixel(x + 4, y + 2);
+    pixel(x + 2, y + 4); pixel(x + 3, y + 5);
+    pixel(x + 4, y + 6); pixel(x + 5, y + 5);
+    pixel(x + 6, y + 4); pixel(x + 7, y + 3); pixel(x + 8, y + 3);
+    pixel(x + 4, y + 12); pixel(x + 3, y + 13); pixel(x + 5, y + 13);
+    pixel(x + 6, y + 12); pixel(x + 7, y + 11); pixel(x + 8, y + 11);
 }
 
-/* Bluetooth rune, 9x13. */
 static void draw_bluetooth_icon(int x, int y)
 {
-    vline(x + 4, y, 13);
-    pixel(x + 4, y); pixel(x + 5, y + 1); pixel(x + 7, y + 3);
-    pixel(x + 5, y + 5); pixel(x + 4, y + 6);
-    pixel(x + 5, y + 7); pixel(x + 7, y + 9);
-    pixel(x + 5, y + 11); pixel(x + 4, y + 12);
-    pixel(x + 1, y + 2); pixel(x + 2, y + 3); pixel(x + 3, y + 4);
-    pixel(x + 1, y + 10); pixel(x + 2, y + 9); pixel(x + 3, y + 8);
+    vline(x + 4, y, 14);
+    pixel(x + 4, y); pixel(x + 5, y + 1); pixel(x + 6, y + 2);
+    pixel(x + 7, y + 3); pixel(x + 8, y + 4); pixel(x + 7, y + 5);
+    pixel(x + 6, y + 6); pixel(x + 5, y + 7); pixel(x + 4, y + 7);
+    pixel(x + 5, y + 8); pixel(x + 6, y + 9); pixel(x + 7, y + 10);
+    pixel(x + 8, y + 11); pixel(x + 7, y + 12); pixel(x + 6, y + 13);
+    pixel(x + 3, y + 1); pixel(x + 2, y + 2); pixel(x + 1, y + 3);
+    pixel(x + 0, y + 4); pixel(x + 1, y + 5); pixel(x + 2, y + 6);
+    pixel(x + 3, y + 7); pixel(x + 2, y + 8); pixel(x + 1, y + 9);
+    pixel(x + 0, y + 10); pixel(x + 1, y + 11); pixel(x + 2, y + 12);
+    pixel(x + 3, y + 13);
+}
+
+/* Status glyphs use the 128x64 UI's check / cross language. */
+static void draw_status_mark(int x, int y, bool good)
+{
+    if (good) {
+        pixel(x, y + 2); pixel(x + 1, y + 3); pixel(x + 2, y + 2);
+        pixel(x + 3, y + 1); pixel(x + 4, y);
+    } else {
+        pixel(x, y); pixel(x + 4, y); pixel(x + 1, y + 1);
+        pixel(x + 3, y + 1); pixel(x + 2, y + 2);
+        pixel(x + 1, y + 3); pixel(x + 3, y + 3);
+        pixel(x, y + 4); pixel(x + 4, y + 4);
+    }
 }
 
 /* Each battery is 17x10, with a substantial six-pixel charge window. */
@@ -155,19 +172,17 @@ static int dashboard_render(void)
 {
     memset(framebuffer, 0, sizeof(framebuffer));
 
-    draw_usb_icon(3, 2);
-    draw_text("USB", 16, 4);
-    if (usb_ready) {
-        pixel(11, 4); pixel(12, 3); pixel(12, 5);
-    }
+    /* Two vertically stacked transport rows. Status is deliberately LEFT
+     * of each symbol, never overlaid on the artwork. */
+    draw_status_mark(1, 6, usb_ready);
+    draw_usb_icon(9, 2);
+    draw_text("USB", 22, 6);
 
-    draw_bluetooth_icon(3, 18);
+    draw_status_mark(1, 23, bt_connected);
+    draw_bluetooth_icon(9, 17);
     draw_text(bt_profile < 5 ? (bt_profile == 0 ? "1" :
               bt_profile == 1 ? "2" : bt_profile == 2 ? "3" :
-              bt_profile == 3 ? "4" : "5") : "1", 17, 21);
-    if (bt_connected) {
-        pixel(26, 21); pixel(26, 22); pixel(26, 23);
-    }
+              bt_profile == 3 ? "4" : "5") : "1", 22, 21);
 
     draw_battery_row(2, 'L', half_level[0]);
     draw_battery_row(18, 'R', half_level[1]);
