@@ -92,45 +92,66 @@ static void draw_text(const char *s, int x, int y)
     }
 }
 
-/* 9x14 USB and Bluetooth artwork borrowed from the established 128x64 UI. */
+/* Exact 1-bit artwork copied from widgets/output_status_sym.c in the
+ * established Hana 128x64 display. Rows are byte-aligned exactly as LVGL I1. */
+static const uint8_t sym_usb_bits[28] = {
+    0x7f,0x00, 0x41,0x00, 0x55,0x00, 0x41,0x00,
+    0xff,0x80, 0x80,0x80, 0x80,0x80, 0x80,0x80,
+    0x80,0x80, 0x80,0x80, 0x80,0x80, 0x80,0x80,
+    0x80,0x80, 0xff,0x80
+};
+static const uint8_t sym_bt_bits[28] = {
+    0x3e,0x00, 0x67,0x00, 0xe3,0x80, 0xe9,0x80,
+    0x8c,0x80, 0xc9,0x80, 0xe3,0x80, 0xe3,0x80,
+    0xc9,0x80, 0x8c,0x80, 0xe9,0x80, 0xe3,0x80,
+    0x67,0x00, 0x3e,0x00
+};
+static const uint8_t sym_ok_bits[5]  = {0x08,0x18,0xb0,0xe0,0x40};
+static const uint8_t sym_nok_bits[5] = {0x88,0xd8,0x70,0xd8,0x88};
+static const uint8_t sym_open_bits[5]= {0x20,0x70,0xd8,0x70,0x20};
+static const uint8_t sym_num_bits[5][6] = {
+    {0x30,0x70,0x70,0x30,0x30,0x30},
+    {0x70,0xd8,0x18,0x30,0x60,0xf8},
+    {0x70,0x98,0x30,0x18,0xd8,0x70},
+    {0x10,0x30,0x70,0xd0,0xf8,0x10},
+    {0x78,0x40,0x70,0x18,0xd8,0x70}
+};
+
+/* LVGL I1 assets are MSB-first, with each row padded to a whole byte. */
+static void draw_bitmap(int x, int y, int width, int height,
+                        const uint8_t *bits)
+{
+    const int stride = (width + 7) / 8;
+    for (int row = 0; row < height; row++) {
+        for (int col = 0; col < width; col++) {
+            if (bits[row * stride + col / 8] & (0x80u >> (col & 7))) {
+                pixel(x + col, y + row);
+            }
+        }
+    }
+}
+
 static void draw_usb_icon(int x, int y)
 {
-    vline(x + 4, y + 1, 12);
-    pixel(x + 0, y + 1); pixel(x + 1, y + 0); pixel(x + 2, y + 0);
-    pixel(x + 3, y + 1); pixel(x + 4, y + 2);
-    pixel(x + 2, y + 4); pixel(x + 3, y + 5);
-    pixel(x + 4, y + 6); pixel(x + 5, y + 5);
-    pixel(x + 6, y + 4); pixel(x + 7, y + 3); pixel(x + 8, y + 3);
-    pixel(x + 4, y + 12); pixel(x + 3, y + 13); pixel(x + 5, y + 13);
-    pixel(x + 6, y + 12); pixel(x + 7, y + 11); pixel(x + 8, y + 11);
+    draw_bitmap(x, y, 9, 14, sym_usb_bits);
 }
 
 static void draw_bluetooth_icon(int x, int y)
 {
-    vline(x + 4, y, 14);
-    pixel(x + 4, y); pixel(x + 5, y + 1); pixel(x + 6, y + 2);
-    pixel(x + 7, y + 3); pixel(x + 8, y + 4); pixel(x + 7, y + 5);
-    pixel(x + 6, y + 6); pixel(x + 5, y + 7); pixel(x + 4, y + 7);
-    pixel(x + 5, y + 8); pixel(x + 6, y + 9); pixel(x + 7, y + 10);
-    pixel(x + 8, y + 11); pixel(x + 7, y + 12); pixel(x + 6, y + 13);
-    pixel(x + 3, y + 1); pixel(x + 2, y + 2); pixel(x + 1, y + 3);
-    pixel(x + 0, y + 4); pixel(x + 1, y + 5); pixel(x + 2, y + 6);
-    pixel(x + 3, y + 7); pixel(x + 2, y + 8); pixel(x + 1, y + 9);
-    pixel(x + 0, y + 10); pixel(x + 1, y + 11); pixel(x + 2, y + 12);
-    pixel(x + 3, y + 13);
+    draw_bitmap(x, y, 9, 14, sym_bt_bits);
 }
 
-/* Status glyphs use the 128x64 UI's check / cross language. */
 static void draw_status_mark(int x, int y, bool good)
 {
-    if (good) {
-        pixel(x, y + 2); pixel(x + 1, y + 3); pixel(x + 2, y + 2);
-        pixel(x + 3, y + 1); pixel(x + 4, y);
+    draw_bitmap(x, y, 5, 5, good ? sym_ok_bits : sym_nok_bits);
+}
+
+static void draw_profile_number(int x, int y, uint8_t profile)
+{
+    if (profile < ARRAY_SIZE(sym_num_bits)) {
+        draw_bitmap(x, y, 5, 6, sym_num_bits[profile]);
     } else {
-        pixel(x, y); pixel(x + 4, y); pixel(x + 1, y + 1);
-        pixel(x + 3, y + 1); pixel(x + 2, y + 2);
-        pixel(x + 1, y + 3); pixel(x + 3, y + 3);
-        pixel(x, y + 4); pixel(x + 4, y + 4);
+        draw_bitmap(x, y, 5, 5, sym_open_bits);
     }
 }
 
@@ -180,9 +201,7 @@ static int dashboard_render(void)
 
     draw_status_mark(1, 23, bt_connected);
     draw_bluetooth_icon(9, 17);
-    draw_text(bt_profile < 5 ? (bt_profile == 0 ? "1" :
-              bt_profile == 1 ? "2" : bt_profile == 2 ? "3" :
-              bt_profile == 3 ? "4" : "5") : "1", 22, 21);
+    draw_profile_number(22, 21, bt_profile);
 
     draw_battery_row(2, 'L', half_level[0]);
     draw_battery_row(18, 'R', half_level[1]);
