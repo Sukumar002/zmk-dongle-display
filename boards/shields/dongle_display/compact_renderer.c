@@ -15,7 +15,7 @@
 #define COMPACT_W 128
 #define COMPACT_H 32
 #define LEFT_X 0
-#define RIGHT_TEXT_X 86
+#define RIGHT_TEXT_X 82
 #define BATTERY_X 119
 #define ROW0_Y 1
 #define ROW1_Y 17
@@ -64,12 +64,6 @@ static lv_obj_t *make_battery_case(lv_obj_t *parent, int y) {
     lv_obj_set_style_radius(case_obj, 1, LV_PART_MAIN);
     lv_obj_set_style_pad_all(case_obj, 0, LV_PART_MAIN);
 
-    lv_obj_t *terminal = lv_obj_create(parent);
-    lv_obj_remove_style_all(terminal);
-    lv_obj_set_pos(terminal, BATTERY_X + 2, y - 1);
-    lv_obj_set_size(terminal, 3, 1);
-    lv_obj_set_style_bg_color(terminal, lv_color_black(), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(terminal, LV_OPA_COVER, LV_PART_MAIN);
     return case_obj;
 }
 
