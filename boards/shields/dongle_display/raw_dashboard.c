@@ -482,6 +482,19 @@ static void refresh_output_state(void)
 
 static int dashboard_listener(const zmk_event_t *eh)
 {
+    if (as_zmk_layer_state_changed(eh) != NULL) {
+        refresh_layer_state();
+        return ZMK_EV_EVENT_BUBBLE;
+    }
+
+    if (as_zmk_keycode_state_changed(eh) != NULL ||
+        as_zmk_position_state_changed(eh) != NULL) {
+        /* Read the map after the layout-shift behavior has updated its state. */
+        (void)k_work_reschedule(&layout_probe_work, K_MSEC(20));
+        (void)dashboard_render();
+        return ZMK_EV_EVENT_BUBBLE;
+    }
+
     const struct zmk_peripheral_battery_state_changed *battery =
         as_zmk_peripheral_battery_state_changed(eh);
     if (battery != NULL) {
@@ -505,6 +518,9 @@ ZMK_SUBSCRIPTION(hana_128x32_dashboard, zmk_endpoint_changed);
 ZMK_SUBSCRIPTION(hana_128x32_dashboard, zmk_usb_conn_state_changed);
 ZMK_SUBSCRIPTION(hana_128x32_dashboard, zmk_ble_active_profile_changed);
 ZMK_SUBSCRIPTION(hana_128x32_dashboard, zmk_peripheral_battery_state_changed);
+ZMK_SUBSCRIPTION(hana_128x32_dashboard, zmk_layer_state_changed);
+ZMK_SUBSCRIPTION(hana_128x32_dashboard, zmk_keycode_state_changed);
+ZMK_SUBSCRIPTION(hana_128x32_dashboard, zmk_position_state_changed);
 
 static int hana_128x32_dashboard_init(void)
 {
@@ -527,7 +543,12 @@ static int hana_128x32_dashboard_init(void)
     err = display_blanking_off(oled);
     if (err) LOG_WRN("display_blanking_off returned %d", err);
 
+    k_work_init_delayable(&layer_scroll_work, layer_scroll_handler);
+    k_work_init_delayable(&layout_probe_work, layout_probe_handler);
+    k_work_init_delayable(&layout_flash_work, layout_flash_timeout_handler);
+    layout_windows_mode = read_layout_windows_mode();
     refresh_output_state();
+    refresh_layer_state();
     LOG_INF("128x32 base status renderer initialized");
     return 0;
 }
