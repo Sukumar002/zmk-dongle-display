@@ -39,8 +39,8 @@ endif()
 # events directly; no LVGL screen or widget renderer is compiled.
 if(CONFIG_HANA_RAW_DASHBOARD AND ((NOT CONFIG_ZMK_SPLIT) OR CONFIG_ZMK_SPLIT_ROLE_CENTRAL))
     zephyr_library()
-    zephyr_library_include_directories(${ZEPHYR_LVGL_MODULE_DIR})
-    zephyr_library_include_directories(${ZEPHYR_BASE}/lib/gui/lvgl/)
+    # The standalone renderer still consumes ZMK event/API headers, but must
+    # not inherit or compile any LVGL-backed base-view code.
+    zephyr_library_include_directories(${CMAKE_SOURCE_DIR}/include)
     zephyr_library_sources(raw_dashboard.c)
-    zephyr_library_sources(${CMAKE_CURRENT_LIST_DIR}/../../../src/hana_base_view.c)
 endif()
