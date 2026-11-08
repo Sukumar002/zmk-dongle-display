@@ -80,6 +80,7 @@ static void draw_char(char c, int x, int y)
         case 'R': glyph=26; break; case 'S': glyph=27; break;
         case 'T': glyph=28; break; case 'U': glyph=29; break;
         case '-': for (int i=0;i<5;i++) put_pixel(x+i,y+3,true); return;
+        case '+': for (int i=0;i<5;i++) { put_pixel(x+i,y+3,true); put_pixel(x+2,y+1,true); put_pixel(x+2,y+5,true); } return;
         case '%':
             put_pixel(x+1,y+1,true); put_pixel(x+2,y+1,true);
             put_pixel(x+1,y+2,true); put_pixel(x+2,y+2,true);
