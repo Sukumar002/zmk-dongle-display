@@ -32,9 +32,10 @@ LOG_MODULE_REGISTER(hana_128x32_dashboard, LOG_LEVEL_INF);
 static const struct device *const oled = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
 static uint8_t framebuffer[FB_SIZE];
 static uint8_t half_level[2] = { 0xff, 0xff };
-static bool usb_ready;
 static bool bt_connected;
+static bool bt_bonded;
 static uint8_t bt_profile;
+static enum zmk_transport active_transport = ZMK_TRANSPORT_NONE;
 
 /* 5x7 column font. Bit zero is the top row. */
 static const uint8_t font[][5] = {
@@ -141,9 +142,19 @@ static void draw_bluetooth_icon(int x, int y)
     draw_bitmap(x, y, 9, 14, sym_bt_bits);
 }
 
-static void draw_status_mark(int x, int y, bool good)
+/* The 64px selection underline becomes a two-pixel vertical marker
+ * beside the active transport's icon in this stacked 32px layout. */
+static void draw_active_transport_marker(int x, int y)
 {
-    draw_bitmap(x, y, 5, 5, good ? sym_ok_bits : sym_nok_bits);
+    vline(x, y, 10);
+    vline(x + 1, y, 10);
+}
+
+static void draw_bt_state(int x, int y)
+{
+    const uint8_t *mark = !bt_bonded ? sym_open_bits :
+                          (bt_connected ? sym_ok_bits : sym_nok_bits);
+    draw_bitmap(x, y, 5, 5, mark);
 }
 
 static void draw_profile_number(int x, int y, uint8_t profile)
@@ -193,15 +204,18 @@ static int dashboard_render(void)
 {
     memset(framebuffer, 0, sizeof(framebuffer));
 
-    /* Two vertically stacked transport rows. Status is deliberately LEFT
-     * of each symbol, never overlaid on the artwork. */
-    draw_status_mark(1, 6, usb_ready);
-    draw_usb_icon(9, 2);
-    draw_text("USB", 22, 6);
+    /* USB and Bluetooth retain the 64px artwork and status semantics.
+     * The selected-output underline is transposed into a vertical marker. */
+    draw_usb_icon(7, 2);
+    draw_bluetooth_icon(7, 17);
+    draw_profile_number(17, 25, bt_profile);
+    draw_bt_state(25, 21);
 
-    draw_status_mark(1, 23, bt_connected);
-    draw_bluetooth_icon(9, 17);
-    draw_profile_number(22, 21, bt_profile);
+    if (active_transport == ZMK_TRANSPORT_USB) {
+        draw_active_transport_marker(1, 4);
+    } else if (active_transport == ZMK_TRANSPORT_BLE) {
+        draw_active_transport_marker(1, 19);
+    }
 
     draw_battery_row(2, 'L', half_level[0]);
     draw_battery_row(18, 'R', half_level[1]);
@@ -216,9 +230,12 @@ static int dashboard_render(void)
 static void refresh_output_state(void)
 {
     struct zmk_endpoint_instance endpoint = zmk_endpoint_get_selected();
-    usb_ready = zmk_usb_is_hid_ready() &&
-                endpoint.transport == ZMK_TRANSPORT_USB;
+    active_transport = endpoint.transport;
+    if (active_transport == ZMK_TRANSPORT_NONE) {
+        active_transport = zmk_endpoint_get_preferred_transport();
+    }
     bt_connected = zmk_ble_active_profile_is_connected();
+    bt_bonded = !zmk_ble_active_profile_is_open();
     bt_profile = zmk_ble_active_profile_index();
     (void)dashboard_render();
 }
