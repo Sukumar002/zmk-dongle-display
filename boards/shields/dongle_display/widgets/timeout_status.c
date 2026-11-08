@@ -146,7 +146,7 @@ static void timeout_status_update_cb(struct timeout_state state) {
         lv_timer_pause(active_widget->hide_timer);
     } else {
         /* A changed value remains visible briefly after a normal tap. */
-        lv_timer_set_period(active_widget->hide_timer, 2500);
+        lv_timer_set_period(active_widget->hide_timer, 3000);
         lv_timer_reset(active_widget->hide_timer);
         lv_timer_resume(active_widget->hide_timer);
     }
