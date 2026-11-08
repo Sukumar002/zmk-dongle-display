@@ -16,6 +16,8 @@
 #include <string.h>
 
 #include <zmk/event_manager.h>
+#include <zmk/activity.h>
+#include <zmk/events/activity_state_changed.h>
 #include <zmk/endpoints.h>
 #include <zmk/usb.h>
 #include <zmk/ble.h>
@@ -63,6 +65,7 @@ static bool timeout_feedback_active;
 static enum zmk_runtime_timeout_kind timeout_feedback_kind;
 static uint32_t timeout_feedback_ms;
 static struct k_work_delayable timeout_feedback_work;
+static bool raw_manual_display_off;
 
 #if DT_NODE_EXISTS(DT_NODELABEL(layout_shift_map_gui_alt_shared))
 static const struct device *const hana_layout_shift_map =
@@ -85,6 +88,26 @@ static bool read_layout_windows_mode(void)
 }
 
 static int dashboard_render(void);
+static void raw_apply_display_power(void)
+{
+    if (!device_is_ready(oled)) {
+        return;
+    }
+
+    if (raw_manual_display_off || zmk_activity_get_state() != ZMK_ACTIVITY_ACTIVE) {
+        (void)display_blanking_on(oled);
+    } else {
+        (void)display_blanking_off(oled);
+    }
+}
+
+/* Mirrors ZMK's LVGL display behavior: a new active session clears manual-off. */
+void zmk_raw_display_toggle_manual_power(void)
+{
+    raw_manual_display_off = !raw_manual_display_off;
+    raw_apply_display_power();
+}
+
 
 /* The existing &base_view_tog behavior calls this entry point. */
 void hana_base_view_cycle(void)
@@ -606,6 +629,16 @@ static void refresh_output_state(void)
 
 static int dashboard_listener(const zmk_event_t *eh)
 {
+    const struct zmk_activity_state_changed *activity =
+        as_zmk_activity_state_changed(eh);
+    if (activity != NULL) {
+        if (activity->state == ZMK_ACTIVITY_ACTIVE) {
+            raw_manual_display_off = false;
+        }
+        raw_apply_display_power();
+        return ZMK_EV_EVENT_BUBBLE;
+    }
+
     const struct zmk_runtime_timeout_changed *timeout =
         as_zmk_runtime_timeout_changed(eh);
     if (timeout != NULL) {
@@ -675,6 +708,7 @@ ZMK_SUBSCRIPTION(hana_128x32_dashboard, zmk_keycode_state_changed);
 ZMK_SUBSCRIPTION(hana_128x32_dashboard, zmk_position_state_changed);
 ZMK_SUBSCRIPTION(hana_128x32_dashboard, zmk_hid_indicators_changed);
 ZMK_SUBSCRIPTION(hana_128x32_dashboard, zmk_runtime_timeout_changed);
+ZMK_SUBSCRIPTION(hana_128x32_dashboard, zmk_activity_state_changed);
 
 static int hana_128x32_dashboard_init(void)
 {
@@ -694,8 +728,7 @@ static int hana_128x32_dashboard_init(void)
     }
     int err = display_set_pixel_format(oled, PIXEL_FORMAT_MONO01);
     if (err) return err;
-    err = display_blanking_off(oled);
-    if (err) LOG_WRN("display_blanking_off returned %d", err);
+    raw_apply_display_power();
 
     k_work_init_delayable(&layer_scroll_work, layer_scroll_handler);
     k_work_init_delayable(&layout_probe_work, layout_probe_handler);
