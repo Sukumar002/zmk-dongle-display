@@ -23,10 +23,10 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #define LED_CLCK 0x02
 #define LED_SLCK 0x04
 
-#if DT_NODE_EXISTS(DT_NODELABEL(layout_shift_map_gui_alt))
+#if DT_NODE_EXISTS(DT_NODELABEL(layout_shift_map_gui_alt_shared))
 #define HANA_HAS_GUI_ALT_LAYOUT_SHIFT 1
 static const struct device *const hana_gui_alt_layout_shift =
-    DEVICE_DT_GET(DT_NODELABEL(layout_shift_map_gui_alt));
+    DEVICE_DT_GET(DT_NODELABEL(layout_shift_map_gui_alt_shared));
 
 struct hana_layout_shift_map_data_view {
     zmk_mod_flags_t modifier_map[8];
