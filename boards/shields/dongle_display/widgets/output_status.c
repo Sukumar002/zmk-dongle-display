@@ -197,6 +197,14 @@ ZMK_SUBSCRIPTION(widget_output_status, zmk_usb_conn_state_changed);
 
 int zmk_widget_output_status_init(struct zmk_widget_output_status *widget, lv_obj_t *parent) {
     widget->obj = lv_obj_create(parent);
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
+    /* This is a coordinate container, not a themed panel. Remove default
+     * theme padding/border so child positions map directly to screen pixels. */
+    lv_obj_remove_style_all(widget->obj);
+    lv_obj_set_style_pad_all(widget->obj, 0, LV_PART_MAIN);
+    lv_obj_set_style_border_width(widget->obj, 0, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(widget->obj, LV_OPA_TRANSP, LV_PART_MAIN);
+#endif
 
     lv_obj_t *usb = lv_img_create(widget->obj);
     lv_img_set_src(usb, &sym_usb);
