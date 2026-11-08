@@ -31,10 +31,10 @@ static struct zmk_widget_layer_status layer_status_widget;
 
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_MODIFIERS)
 static struct zmk_widget_modifiers modifiers_widget;
-#if IS_ENABLED(CONFIG_ZMK_HID_INDICATORS)
-static struct zmk_widget_hid_indicators hid_indicators_widget;
 #endif
 
+#if IS_ENABLED(CONFIG_ZMK_HID_INDICATORS)
+static struct zmk_widget_hid_indicators hid_indicators_widget;
 #endif
 
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_BONGO_CAT)
@@ -91,9 +91,17 @@ lv_obj_t *zmk_display_status_screen() {
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_MODIFIERS)
     zmk_widget_modifiers_init(&modifiers_widget, screen);
     lv_obj_align(zmk_widget_modifiers_obj(&modifiers_widget), LV_ALIGN_BOTTOM_LEFT, 0, 0);
+#endif
+
 #if IS_ENABLED(CONFIG_ZMK_HID_INDICATORS)
     zmk_widget_hid_indicators_init(&hid_indicators_widget, screen);
-    lv_obj_align_to(zmk_widget_hid_indicators_obj(&hid_indicators_widget), zmk_widget_modifiers_obj(&modifiers_widget), LV_ALIGN_OUT_TOP_LEFT, 0, -2);
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_CENTERED_LOCKS)
+    lv_obj_align(zmk_widget_hid_indicators_obj(&hid_indicators_widget),
+                 LV_ALIGN_BOTTOM_MID, 0, -1);
+#elif IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_MODIFIERS)
+    lv_obj_align_to(zmk_widget_hid_indicators_obj(&hid_indicators_widget),
+                    zmk_widget_modifiers_obj(&modifiers_widget),
+                    LV_ALIGN_OUT_TOP_LEFT, 0, -2);
 #endif
 #endif
 

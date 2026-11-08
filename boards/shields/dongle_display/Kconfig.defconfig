@@ -33,6 +33,10 @@ config ZMK_DONGLE_DISPLAY_MODIFIERS
     bool "Display the modifiers widget"
     default y
 
+config ZMK_DONGLE_DISPLAY_CENTERED_LOCKS
+    bool "Display active HID locks as a centered bordered badge"
+    default n
+
 config ZMK_DONGLE_DISPLAY_LAYER
     bool "Display the highest layer widget"
     default y

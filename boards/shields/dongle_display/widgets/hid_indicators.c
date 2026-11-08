@@ -54,30 +54,29 @@ struct hid_indicators_state {
 static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
 
 static void set_hid_indicators(lv_obj_t *label, struct hid_indicators_state state) {
-    char text[7] = {};
-    bool lock = false;
+    char text[4] = {};
 
     if (state.hid_indicators & LED_CLCK) {
-        strncat(text, "C", 2);
-        lock = true;
+        strncat(text, "C", sizeof(text) - strlen(text) - 1);
     }
     /*
      * macOS can leave the HID Num Lock bit asserted even though Num Lock is not
      * meaningful for this keyboard. Only show Num/Scroll Lock in Windows mode.
      */
     if (state.windows_mode && (state.hid_indicators & LED_NLCK)) {
-        strncat(text, "N", 2);
-        lock = true;
+        strncat(text, "N", sizeof(text) - strlen(text) - 1);
     }
     if (state.windows_mode && (state.hid_indicators & LED_SLCK)) {
-        strncat(text, "S", 2);
-        lock = true;
+        strncat(text, "S", sizeof(text) - strlen(text) - 1);
     }
-    if (lock) {
-        strncat(text, "LCK", 4);
+    if (text[0] == '\0') {
+        lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);
+        return;
     }
 
+    /* A compact bordered badge: C, N, S, or a combined state such as CN. */
     lv_label_set_text(label, text);
+    lv_obj_clear_flag(label, LV_OBJ_FLAG_HIDDEN);
 }
 
 void hid_indicators_update_cb(struct hid_indicators_state state) {
@@ -104,6 +103,14 @@ ZMK_SUBSCRIPTION(widget_hid_indicators, zmk_hid_indicators_changed);
 
 int zmk_widget_hid_indicators_init(struct zmk_widget_hid_indicators *widget, lv_obj_t *parent) {
     widget->obj = lv_label_create(parent);
+    lv_obj_set_style_border_width(widget->obj, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(widget->obj, lv_color_black(), LV_PART_MAIN);
+    lv_obj_set_style_radius(widget->obj, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_hor(widget->obj, 3, LV_PART_MAIN);
+    lv_obj_set_style_pad_ver(widget->obj, 0, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(widget->obj, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_text_align(widget->obj, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
 
     sys_slist_append(&widgets, &widget->node);
 

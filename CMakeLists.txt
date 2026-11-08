@@ -13,3 +13,9 @@ if(CONFIG_HANA_CHARGE_STATUS)
         src/hana_charge_state_changed.c
     )
 endif()
+
+if (CONFIG_ZMK_HID_INDICATORS)
+    zephyr_library_sources(
+        boards/shields/dongle_display/widgets/hid_indicators.c
+    )
+endif()
