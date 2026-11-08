@@ -7,3 +7,11 @@ config HANA_CHARGE_STATUS
       Enables charging-state detection and transport for Hana peripherals.
 
 endmenu
+
+config HANA_RAW_DASHBOARD
+    bool "Use standalone Zephyr framebuffer dashboard"
+    default n
+    depends on SHIELD_DONGLE_DISPLAY
+    help
+      Draw the compact Hana 128x32 dashboard directly through the Zephyr
+      display API without enabling the ZMK LVGL display stack.
