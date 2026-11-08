@@ -58,9 +58,13 @@ static void set_layer_text(struct zmk_widget_layer_status *widget,
 
 static void refresh_all(void) {
     uint8_t index = zmk_keymap_highest_layer_active();
+    /* highest_layer_active() returns a display/order index, while
+     * zmk_keymap_layer_name() takes the stable layer ID. They differ when
+     * ZMK Studio reorders layers. */
+    const zmk_keymap_layer_id_t layer_id = zmk_keymap_layer_index_to_id(index);
     struct layer_status_state state = {
         .index = index,
-        .name = zmk_keymap_layer_name(index),
+        .name = zmk_keymap_layer_name(layer_id),
     };
 
     struct zmk_widget_layer_status *widget;
@@ -85,9 +89,10 @@ static struct layer_status_state layer_status_get_state(const zmk_event_t *eh) {
     ARG_UNUSED(eh);
 
     uint8_t index = zmk_keymap_highest_layer_active();
+    const zmk_keymap_layer_id_t layer_id = zmk_keymap_layer_index_to_id(index);
     return (struct layer_status_state) {
         .index = index,
-        .name = zmk_keymap_layer_name(index),
+        .name = zmk_keymap_layer_name(layer_id),
     };
 }
 
@@ -120,9 +125,11 @@ int zmk_widget_layer_status_init(struct zmk_widget_layer_status *widget,
 
     sys_slist_append(&widgets, &widget->node);
 
+    const zmk_keymap_layer_id_t layer_id =
+        zmk_keymap_layer_index_to_id(widget->layer);
     set_layer_text(widget, (struct layer_status_state) {
         .index = widget->layer,
-        .name = zmk_keymap_layer_name(widget->layer),
+        .name = zmk_keymap_layer_name(layer_id),
     });
 
     widget_layer_status_init();
