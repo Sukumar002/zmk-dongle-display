@@ -32,3 +32,11 @@ if(CONFIG_ZMK_DISPLAY AND CONFIG_ZMK_DISPLAY_STATUS_SCREEN_CUSTOM AND ((NOT CONF
         zephyr_library_sources(widgets/wpm_status_sym.c)
     endif()
 endif()
+
+# Standalone Zephyr framebuffer renderer for compact 128x32 OLEDs.
+# It is mutually exclusive with the LVGL status screen.
+if(CONFIG_DONGLE_DISPLAY_RAW_DASHBOARD AND ((NOT CONFIG_ZMK_SPLIT) OR CONFIG_ZMK_SPLIT_ROLE_CENTRAL))
+    zephyr_library()
+    zephyr_library_include_directories(${CMAKE_SOURCE_DIR}/include)
+    zephyr_library_sources(raw_dashboard.c)
+endif()
