@@ -78,7 +78,12 @@ static void draw_text(const char *s, int x, int y)
 {
     while (*s) {
         unsigned char c = (unsigned char)*s++;
-        if (c >= '0' && c <= '9') {
+        if (c == ' ') {
+            /* Space advances the text cursor but must not index font[0]:
+             * that slot is also used for the digit zero. */
+            x += 6;
+            continue;
+        } else if (c >= '0' && c <= '9') {
             const uint8_t *g = font[c - '0'];
             for (int col = 0; col < 5; col++)
                 for (int row = 0; row < 7; row++)
