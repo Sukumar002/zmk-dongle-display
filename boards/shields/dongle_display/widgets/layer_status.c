@@ -165,6 +165,19 @@ static void compact_layer_notice_update(struct compact_layer_notice_state state)
         return;
     }
 
+    /*
+     * Base is the idle/dashboard state, not a layer notification. Hide the
+     * overlay immediately when the last momentary layer is released so the
+     * dashboard or modifier-family view remains visible without a BASE flash.
+     */
+    if (hana_base_view_is_base_layer(state.index)) {
+        lv_obj_add_flag(compact_layer_notice, LV_OBJ_FLAG_HIDDEN);
+        if (compact_layer_timer != NULL) {
+            lv_timer_pause(compact_layer_timer);
+        }
+        return;
+    }
+
     const char *name = state.name;
     if (name == NULL || name[0] == '\\0') {
         name = fallback_layer_name(state.index);
