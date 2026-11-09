@@ -21,3 +21,5 @@ struct zmk_widget_layer_status {
 int zmk_widget_layer_status_init(struct zmk_widget_layer_status *widget, lv_obj_t *parent);
 void zmk_widget_layer_status_set_base_text_enabled(bool enabled);
 lv_obj_t *zmk_widget_layer_status_obj(struct zmk_widget_layer_status *widget);
+
+int zmk_widget_layer_status_compact_init(lv_obj_t *parent);
