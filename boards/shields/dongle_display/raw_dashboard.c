@@ -336,8 +336,23 @@ static void draw_battery_row(int y, char side, uint8_t level)
     draw_battery_icon(108, y, level);
 }
 
-/* One compact CNS capsule lives below the battery/layer region. Its text is
- * independent of the active layer, so every active lock remains visible. */
+/* The 8px CNS capsule is independent of layer and upper-right content. */
+static void draw_lock_char(char c, int x, int y)
+{
+    static const uint8_t c_rows[5] = { 0x07, 0x04, 0x04, 0x04, 0x07 };
+    static const uint8_t n_rows[5] = { 0x05, 0x07, 0x07, 0x07, 0x05 };
+    static const uint8_t s_rows[5] = { 0x07, 0x04, 0x07, 0x01, 0x07 };
+    const uint8_t *rows = c == 'C' ? c_rows : (c == 'N' ? n_rows : s_rows);
+
+    for (int row = 0; row < 5; row++) {
+        for (int col = 0; col < 3; col++) {
+            if (rows[row] & BIT(2 - col)) {
+                pixel(x + col, y + row);
+            }
+        }
+    }
+}
+
 static void draw_lock_indicators(void)
 {
     char text[4] = { 0 };
@@ -352,14 +367,18 @@ static void draw_lock_indicators(void)
     }
     if (text[0] == '\0') return;
 
-    const int text_width = (int)strlen(text) * 6 - 1;
-    const int box_width = text_width + 6;
-    const int box_height = 10;
+    const int text_width = (int)strlen(text) * 4 - 1;
+    const int box_width = text_width + 4;
+    const int box_height = 8;
     const int x = OLED_W - box_width - 1;
     const int y = OLED_H - box_height;
 
     outline_capsule(x, y, box_width, box_height);
-    draw_text(text, x + 3, y + 1);
+    int text_x = x + 2;
+    for (size_t i = 0; i < strlen(text); i++) {
+        draw_lock_char(text[i], text_x, y + 1);
+        text_x += 4;
+    }
 }
 
 static int dashboard_flush(void)
