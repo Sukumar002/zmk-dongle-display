@@ -69,18 +69,19 @@ lv_obj_t *zmk_display_status_screen() {
 
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
     /*
-     * Compact 128x32 layout: keep the full-size connection indicators on the
-     * left and the stacked battery fields on the right. Do not initialize
-     * 64px-only bottom widgets (cat, modifiers, layer badge, WPM or locks),
-     * which otherwise overlap when the 64px composition is squeezed down.
-     * Timeout feedback takes the whole centre band while it is active.
+     * Compact 128x32 layout: preserve the connection indicators on the left
+     * and stacked battery fields on the right. The lock widget occupies only
+     * the lower-right strip and stays hidden when no host locks are active.
      */
 #if IS_ENABLED(CONFIG_ZMK_BATTERY) && !IS_ENABLED(CONFIG_ZMK_UNIVERSAL_DONGLE_CENTRAL_IDENTITY)
     zmk_widget_dongle_battery_status_init(&dongle_battery_status_widget, screen);
     lv_obj_align(zmk_widget_dongle_battery_status_obj(&dongle_battery_status_widget),
                  LV_ALIGN_TOP_RIGHT, 0, 0);
 #endif
-    /* Reuse the existing persistent non-base layer widget over the L/R rows. */
+    zmk_widget_hid_indicators_init(&hid_indicators_widget, screen);
+    lv_obj_align(zmk_widget_hid_indicators_obj(&hid_indicators_widget),
+                 LV_ALIGN_BOTTOM_RIGHT, -1, 0);
+    /* Preserve the existing non-base layer label behavior. */
     zmk_widget_layer_status_init(&layer_status_widget, screen);
     lv_obj_align(zmk_widget_layer_status_obj(&layer_status_widget),
                  LV_ALIGN_TOP_RIGHT, 0, 0);
