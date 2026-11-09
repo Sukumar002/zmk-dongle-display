@@ -95,6 +95,13 @@ lv_obj_t *zmk_display_status_screen() {
 
     zmk_widget_output_status_init(&output_status_widget, screen_root);
     zmk_widget_timeout_status_init(&timeout_status_widget, screen_root);
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
+    lv_obj_align(zmk_widget_timeout_status_obj(&timeout_status_widget),
+                 LV_ALIGN_CENTER, 0, 0);
+#else
+    lv_obj_align(zmk_widget_timeout_status_obj(&timeout_status_widget),
+                 LV_ALIGN_LEFT_MID, 0, 0);
+#endif
 
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_MODIFIERS)
