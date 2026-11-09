@@ -17,6 +17,7 @@
 #define GLYPH_ADVANCE 6
 #define LEFT_REGION_END 38
 #define RIGHT_REGION_START 88
+#define HANA_WINDOWS_BASE_LAYER 1
 #define LAYER_TEXT_LEFT 92
 #define LAYER_TEXT_RIGHT 123
 #define TEXT_COLOR lv_color_black()
@@ -276,7 +277,7 @@ static void render(void) {
         else { vline(1, 20, 10); vline(2, 20, 10); }
     }
 
-    if (active_layer == 0) {
+    if (active_layer <= HANA_WINDOWS_BASE_LAYER) {
         draw_battery_row(0, 'L');
         draw_battery_row(1, 'R');
     } else {
@@ -286,14 +287,14 @@ static void render(void) {
 }
 static void layer_scroll_cb(lv_timer_t *timer) {
     ARG_UNUSED(timer);
-    if (active_layer == 0 || text_width(active_layer_name) <= 32) return;
+    if (active_layer <= HANA_WINDOWS_BASE_LAYER || text_width(active_layer_name) <= 32) return;
     layer_scroll_px++;
     if (layer_scroll_px >= text_width(active_layer_name) + 12) layer_scroll_px = 0;
     render();
 }
 static void update_layer_timer(void) {
     if (!layer_scroll_timer) return;
-    if (active_layer != 0 && text_width(active_layer_name) > 32) {
+    if (active_layer > HANA_WINDOWS_BASE_LAYER && text_width(active_layer_name) > 32) {
         layer_scroll_px = 0;
         lv_timer_set_period(layer_scroll_timer, 45);
         lv_timer_resume(layer_scroll_timer);
