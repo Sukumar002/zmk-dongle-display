@@ -12,6 +12,7 @@
 struct zmk_widget_hid_indicators {
     sys_snode_t node;
     lv_obj_t *obj;
+    lv_obj_t *badges[3];
 };
 
 int zmk_widget_hid_indicators_init(struct zmk_widget_hid_indicators *widget, lv_obj_t *parent);
