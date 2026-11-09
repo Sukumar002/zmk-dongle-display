@@ -142,6 +142,12 @@ static void timeout_status_update_cb(struct timeout_state state) {
     }
 
     set_timeout_text(active_widget->label, state.kind, state.timeout_ms);
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
+    /* Centre the icon + value as a group without requiring LVGL flex support. */
+    int32_t label_width = lv_obj_get_width(active_widget->label);
+    lv_obj_align(active_widget->icon, LV_ALIGN_CENTER, -(label_width + 4) / 2, 0);
+    lv_obj_align(active_widget->label, LV_ALIGN_CENTER, (ICON_W + 4) / 2, 0);
+#endif
 
     lv_obj_clear_flag(active_widget->obj, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(active_widget->obj);
@@ -171,8 +177,6 @@ int zmk_widget_timeout_status_init(struct zmk_widget_timeout_status *widget, lv_
     lv_obj_set_style_border_width(widget->obj, 0, LV_PART_MAIN);
     lv_obj_set_style_radius(widget->obj, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(widget->obj, 0, LV_PART_MAIN);
-    lv_obj_set_flex_flow(widget->obj, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(widget->obj, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 #else
     lv_obj_set_size(widget->obj, 112, 14);
 #endif
