@@ -384,8 +384,8 @@ static void draw_modifier_bitmap(int x, int y, const uint8_t *bits, bool inverte
     }
 }
 
-/* Keep C/N/S visible in the dedicated lower-right 12px strip.
- * An outline appears only while that host lock is active. */
+/* Show only active host locks in the lower-right strip.
+ * When no locks are active, this region remains completely clear. */
 static void draw_lock_indicators(void)
 {
     static const struct {
@@ -399,15 +399,22 @@ static void draw_lock_indicators(void)
 
     const int box_size = 12;
     const int gap = 2;
-    const int total_width = ARRAY_SIZE(locks) * box_size +
-                            (ARRAY_SIZE(locks) - 1) * gap;
-    int x = OLED_W - total_width - 1;
     const int y = OLED_H - box_size;
+    int active_count = 0;
 
     for (size_t i = 0; i < ARRAY_SIZE(locks); i++) {
-        if (lock_indicators & locks[i].mask) {
-            outline_rect(x, y, box_size, box_size);
-        }
+        if (lock_indicators & locks[i].mask) active_count++;
+    }
+    if (active_count == 0) return;
+
+    const int total_width = active_count * box_size +
+                            (active_count - 1) * gap;
+    int x = OLED_W - total_width - 1;
+
+    for (size_t i = 0; i < ARRAY_SIZE(locks); i++) {
+        if (!(lock_indicators & locks[i].mask)) continue;
+
+        outline_rect(x, y, box_size, box_size);
         char label[] = { locks[i].letter, '\0' };
         draw_text(label, x + 3, y + 2);
         x += box_size + gap;
