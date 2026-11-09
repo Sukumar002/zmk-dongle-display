@@ -139,3 +139,98 @@ int zmk_widget_layer_status_init(struct zmk_widget_layer_status *widget,
 lv_obj_t *zmk_widget_layer_status_obj(struct zmk_widget_layer_status *widget) {
     return widget->obj;
 }
+
+
+/* Full-panel layer-change notice for the compact 128x32 OLED. */
+struct compact_layer_notice_state {
+    uint8_t index;
+    const char *name;
+};
+
+static lv_obj_t *compact_layer_notice;
+static lv_obj_t *compact_layer_label;
+static lv_obj_t *compact_layer_label_bold;
+static lv_timer_t *compact_layer_timer;
+
+static void compact_layer_notice_hide(lv_timer_t *timer) {
+    ARG_UNUSED(timer);
+    if (compact_layer_notice != NULL) {
+        lv_obj_add_flag(compact_layer_notice, LV_OBJ_FLAG_HIDDEN);
+    }
+    lv_timer_pause(compact_layer_timer);
+}
+
+static void compact_layer_notice_update(struct compact_layer_notice_state state) {
+    if (compact_layer_notice == NULL) {
+        return;
+    }
+
+    const char *name = state.name;
+    if (name == NULL || name[0] == '\\0') {
+        name = fallback_layer_name(state.index);
+    }
+
+    lv_label_set_text(compact_layer_label, name);
+    lv_label_set_text(compact_layer_label_bold, name);
+    lv_obj_clear_flag(compact_layer_notice, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(compact_layer_notice);
+    lv_timer_set_period(compact_layer_timer, 2500);
+    lv_timer_reset(compact_layer_timer);
+    lv_timer_resume(compact_layer_timer);
+}
+
+static struct compact_layer_notice_state compact_layer_notice_get_state(const zmk_event_t *eh) {
+    ARG_UNUSED(eh);
+    uint8_t index = zmk_keymap_highest_layer_active();
+    const zmk_keymap_layer_id_t layer_id = zmk_keymap_layer_index_to_id(index);
+    return (struct compact_layer_notice_state) {
+        .index = index,
+        .name = zmk_keymap_layer_name(layer_id),
+    };
+}
+
+static void compact_layer_notice_update_cb(struct compact_layer_notice_state state) {
+    compact_layer_notice_update(state);
+}
+
+ZMK_DISPLAY_WIDGET_LISTENER(widget_compact_layer_notice,
+                            struct compact_layer_notice_state,
+                            compact_layer_notice_update_cb,
+                            compact_layer_notice_get_state)
+ZMK_SUBSCRIPTION(widget_compact_layer_notice, zmk_layer_state_changed);
+
+int zmk_widget_layer_status_compact_init(lv_obj_t *parent) {
+    compact_layer_notice = lv_obj_create(parent);
+    lv_obj_set_size(compact_layer_notice, 128, 32);
+    lv_obj_set_style_bg_color(compact_layer_notice, lv_color_white(), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(compact_layer_notice, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(compact_layer_notice, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(compact_layer_notice, 0, LV_PART_MAIN);
+
+    lv_obj_t *frame = lv_obj_create(compact_layer_notice);
+    lv_obj_set_size(frame, 116, 22);
+    lv_obj_center(frame);
+    lv_obj_set_style_bg_color(frame, lv_color_white(), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(frame, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(frame, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(frame, lv_color_black(), LV_PART_MAIN);
+    lv_obj_set_style_radius(frame, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(frame, 1, LV_PART_MAIN);
+
+    compact_layer_label = lv_label_create(frame);
+    compact_layer_label_bold = lv_label_create(frame);
+    lv_obj_set_width(compact_layer_label, 108);
+    lv_obj_set_width(compact_layer_label_bold, 108);
+    lv_obj_set_style_text_align(compact_layer_label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_obj_set_style_text_align(compact_layer_label_bold, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_obj_align(compact_layer_label, LV_ALIGN_CENTER, -1, 0);
+    lv_obj_align(compact_layer_label_bold, LV_ALIGN_CENTER, 0, 0);
+    lv_label_set_long_mode(compact_layer_label, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    lv_label_set_long_mode(compact_layer_label_bold, LV_LABEL_LONG_SCROLL_CIRCULAR);
+
+    compact_layer_timer = lv_timer_create(compact_layer_notice_hide, 2500, NULL);
+    lv_timer_pause(compact_layer_timer);
+    lv_obj_add_flag(compact_layer_notice, LV_OBJ_FLAG_HIDDEN);
+    widget_compact_layer_notice_init();
+    return 0;
+}
