@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include <zephyr/settings/settings.h>
+#include <zmk/keymap.h>
 #include <hana_base_view.h>
 
 #include "hana_base_view.h"
@@ -13,7 +14,8 @@
 static uint8_t base_view_mode = HANA_BASE_VIEW_CAT;
 
 bool hana_base_view_is_base_layer(uint8_t layer) {
-    return layer < CONFIG_ZMK_DONGLE_DISPLAY_BASE_LAYER_COUNT;
+    const char *name = zmk_keymap_layer_name(layer);
+    return name != NULL && strcmp(name, "Base") == 0;
 }
 
 enum hana_base_view_mode hana_base_view_get_mode(void) {
