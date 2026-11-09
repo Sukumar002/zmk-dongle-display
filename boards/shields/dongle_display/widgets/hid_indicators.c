@@ -51,10 +51,10 @@ static void set_hid_indicators(struct zmk_widget_hid_indicators *widget,
         return;
     }
 
-    /* Right-align only the active badges inside the fixed-width container. */
-    const int badge_width = 12;
+    /* Right-align compact active badges inside the fixed-width container. */
+    const int badge_width = 9;
     const int gap = 2;
-    int x = 40 - (int)count * badge_width - ((int)count - 1) * gap;
+    int x = 32 - (int)count * badge_width - ((int)count - 1) * gap;
     for (int i = 0; i < 3; i++) {
         if (lv_obj_has_flag(widget->badges[i], LV_OBJ_FLAG_HIDDEN)) {
             continue;
@@ -84,7 +84,7 @@ ZMK_SUBSCRIPTION(widget_hid_indicators, zmk_hid_indicators_changed);
 
 int zmk_widget_hid_indicators_init(struct zmk_widget_hid_indicators *widget, lv_obj_t *parent) {
     widget->obj = lv_obj_create(parent);
-    lv_obj_set_size(widget->obj, 40, 12);
+    lv_obj_set_size(widget->obj, 32, 9);
     lv_obj_set_style_bg_opa(widget->obj, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_border_width(widget->obj, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(widget->obj, 0, LV_PART_MAIN);
@@ -95,7 +95,7 @@ int zmk_widget_hid_indicators_init(struct zmk_widget_hid_indicators *widget, lv_
     for (int i = 0; i < 3; i++) {
         lv_obj_t *badge = lv_label_create(widget->obj);
         widget->badges[i] = badge;
-        lv_obj_set_size(badge, 12, 12);
+        lv_obj_set_size(badge, 9, 9);
         lv_obj_set_style_border_width(badge, 1, LV_PART_MAIN);
         lv_obj_set_style_border_color(badge, lv_color_black(), LV_PART_MAIN);
         lv_obj_set_style_radius(badge, 0, LV_PART_MAIN);
