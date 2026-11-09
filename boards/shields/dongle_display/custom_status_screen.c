@@ -65,8 +65,23 @@ lv_obj_t *zmk_display_status_screen() {
     lv_obj_align(zmk_widget_output_status_obj(&output_status_widget), LV_ALIGN_TOP_LEFT, 0, 0);
 
     zmk_widget_timeout_status_init(&timeout_status_widget, screen);
-    /* Temporary timeout feedback shares the center band with the active keyboard name. */
-    lv_obj_align(zmk_widget_timeout_status_obj(&timeout_status_widget), LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_align(zmk_widget_timeout_status_obj(&timeout_status_widget), LV_ALIGN_CENTER, 0, 0);
+
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
+    /*
+     * Compact 128x32 layout: keep the full-size connection indicators on the
+     * left and the stacked battery fields on the right. Do not initialize
+     * 64px-only bottom widgets (cat, modifiers, layer badge, WPM or locks),
+     * which otherwise overlap when the 64px composition is squeezed down.
+     * Timeout feedback takes the whole centre band while it is active.
+     */
+#if IS_ENABLED(CONFIG_ZMK_BATTERY) && !IS_ENABLED(CONFIG_ZMK_UNIVERSAL_DONGLE_CENTRAL_IDENTITY)
+    zmk_widget_dongle_battery_status_init(&dongle_battery_status_widget, screen);
+    lv_obj_align(zmk_widget_dongle_battery_status_obj(&dongle_battery_status_widget),
+                 LV_ALIGN_TOP_RIGHT, 0, 0);
+#endif
+    return screen;
+#else
 #if IS_ENABLED(CONFIG_ZMK_UNIVERSAL_DONGLE_CENTRAL_IDENTITY)
     zmk_universal_oled_status_init(screen, zmk_widget_timeout_status_obj(&timeout_status_widget));
 #endif
@@ -120,4 +135,5 @@ lv_obj_t *zmk_display_status_screen() {
 #endif
 
     return screen;
+#endif
 }
