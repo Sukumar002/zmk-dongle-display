@@ -20,6 +20,12 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
 static bool base_text_enabled;
 
+
+struct layer_status_state {
+    uint8_t index;
+    const char *name;
+};
+
 static bool is_compact_display(void) {
     lv_display_t *display = lv_display_get_default();
     return display != NULL && lv_display_get_vertical_resolution(display) <= 32;
@@ -34,11 +40,6 @@ static bool layer_is_base(struct layer_status_state state) {
     /* Fall back to the conventional first layer only when no name is exposed. */
     return state.index == 0;
 }
-
-struct layer_status_state {
-    uint8_t index;
-    const char *name;
-};
 
 static const char *fallback_layer_name(uint8_t index) {
     switch (index) {
@@ -60,7 +61,9 @@ static void set_layer_text(struct zmk_widget_layer_status *widget,
 
     if (compact_display) {
         /* On 128x32, batteries and layer name share the upper status zone. */
+#if IS_ENABLED(CONFIG_ZMK_BATTERY)
         zmk_widget_dongle_battery_status_set_hidden(!base_layer);
+#endif
         if (base_layer) {
             lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
             return;
