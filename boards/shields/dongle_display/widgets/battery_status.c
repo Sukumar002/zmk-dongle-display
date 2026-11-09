@@ -128,43 +128,6 @@ static void draw_battery(lv_obj_t *canvas, uint8_t level, bool charging) {
     }
 }
 
-static void draw_charge_flash(lv_obj_t *canvas) {
-    lv_canvas_fill_bg(canvas, lv_color_black(), LV_OPA_TRANSP);
-
-    const lv_color_t white = lv_color_white();
-    const uint8_t pixels[][2] = {
-        {3,0}, {2,1}, {3,1}, {1,2}, {2,2},
-        {1,3}, {2,3}, {3,3}, {2,4}, {3,4},
-        {2,5}, {1,6}, {1,7}
-    };
-
-    for (size_t i = 0; i < ARRAY_SIZE(pixels); i++) {
-        lv_canvas_set_px(canvas, pixels[i][0], pixels[i][1], white, LV_OPA_COVER);
-    }
-}
-
-static void charge_opa_anim_cb(void *obj, int32_t value) {
-    lv_obj_set_style_opa((lv_obj_t *)obj, value, LV_PART_MAIN);
-}
-
-static void start_charge_breathing(lv_obj_t *icon) {
-    lv_anim_del(icon, charge_opa_anim_cb);
-
-    lv_anim_t anim;
-    lv_anim_init(&anim);
-    lv_anim_set_var(&anim, icon);
-    lv_anim_set_exec_cb(&anim, charge_opa_anim_cb);
-    lv_anim_set_values(&anim, LV_OPA_30, LV_OPA_COVER);
-    lv_anim_set_duration(&anim, 800);
-    lv_anim_set_playback_duration(&anim, 800);
-    lv_anim_set_repeat_count(&anim, LV_ANIM_REPEAT_INFINITE);
-    lv_anim_start(&anim);
-}
-
-static void stop_charge_breathing(lv_obj_t *icon) {
-    lv_anim_del(icon, charge_opa_anim_cb);
-    lv_obj_set_style_opa(icon, LV_OPA_COVER, LV_PART_MAIN);
-}
 
 static void set_battery_symbol(lv_obj_t *widget, struct battery_state state) {
     ARG_UNUSED(widget);
