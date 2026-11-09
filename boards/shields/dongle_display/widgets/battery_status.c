@@ -175,6 +175,28 @@ static void set_battery_symbol(lv_obj_t *widget, struct battery_state state) {
     cached_levels[state.source] = state.level;
     cached_charging[state.source] = state.charging;
 
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
+    /* Compact 128x32 right panel: L/R percentage text only. */
+    if (SOURCE_OFFSET && state.source == 0) {
+        lv_obj_add_flag(symbol, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(charge_icon, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
+    const uint8_t peripheral_index = state.source - SOURCE_OFFSET;
+    if (peripheral_index < 2) {
+        if (state.level >= 100) {
+            lv_label_set_text_fmt(label, "%c100", peripheral_index == 0 ? 'L' : 'R');
+        } else {
+            lv_label_set_text_fmt(label, "%c %02u", peripheral_index == 0 ? 'L' : 'R', state.level);
+        }
+        lv_obj_add_flag(symbol, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(charge_icon, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(label, LV_OBJ_FLAG_HIDDEN);
+    }
+    return;
+#endif
+
     const bool is_dongle = SOURCE_OFFSET && state.source == 0;
 
     /*
@@ -347,10 +369,16 @@ int zmk_widget_dongle_battery_status_init(struct zmk_widget_dongle_battery_statu
             lv_obj_set_pos(charge_canvas, 0, 4);
             lv_obj_set_pos(battery_label, 9, 2);
         } else {
-            /* Split halves: preserve a stable right-side percentage stack. */
+            /* Split halves: stable right-side stack; compact mode is text-only. */
             int peripheral_index = i - SOURCE_OFFSET;
             int y = peripheral_index * 10;
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
+            lv_obj_set_pos(battery_label, 35, y);
+            lv_obj_set_width(battery_label, 43);
+            lv_obj_set_style_text_align(battery_label, LV_TEXT_ALIGN_RIGHT, 0);
+#else
             lv_obj_set_pos(battery_label, 43, y - 1);
+#endif
             lv_obj_set_pos(image_canvas, 70, y);
             lv_obj_set_pos(charge_canvas, 70, y);
         }
@@ -367,6 +395,18 @@ int zmk_widget_dongle_battery_status_init(struct zmk_widget_dongle_battery_statu
     }
 
     sys_slist_append(&widgets, &widget->node);
+
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
+    /* Stable placeholders are visible before the first battery event arrives. */
+    for (int i = 0; i < ZMK_SPLIT_BLE_PERIPHERAL_COUNT + SOURCE_OFFSET; i++) {
+        if (SOURCE_OFFSET && i == 0) continue;
+        uint8_t peripheral_index = i - SOURCE_OFFSET;
+        if (peripheral_index >= 2) continue;
+        lv_label_set_text_fmt(battery_objects[i].label, "%c 00",
+                              peripheral_index == 0 ? 'L' : 'R');
+        lv_obj_clear_flag(battery_objects[i].label, LV_OBJ_FLAG_HIDDEN);
+    }
+#endif
 
     widget_dongle_battery_status_init();
 
