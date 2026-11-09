@@ -11,6 +11,11 @@
 #include "../boards/shields/dongle_display/widgets/layer_status.h"
 
 static uint8_t base_view_mode = HANA_BASE_VIEW_CAT;
+static uint8_t compact_view_mode = 0;
+
+bool hana_base_view_is_compact_modifiers(void) {
+    return compact_view_mode != 0;
+}
 
 bool hana_base_view_is_base_layer(uint8_t layer) {
     return layer < CONFIG_ZMK_DONGLE_DISPLAY_BASE_LAYER_COUNT;
@@ -45,6 +50,14 @@ static void apply_base_view(void) {
 }
 
 void hana_base_view_cycle(void) {
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
+    compact_view_mode = compact_view_mode ? 0 : 1;
+    zmk_dongle_display_set_compact_view(compact_view_mode != 0);
+#if IS_ENABLED(CONFIG_SETTINGS)
+    settings_save_one("hana_base_view/compact_mode", &compact_view_mode, sizeof(compact_view_mode));
+#endif
+    return;
+#else
     base_view_mode = (base_view_mode + 1) % HANA_BASE_VIEW_MODE_COUNT;
 
 #if IS_ENABLED(CONFIG_SETTINGS)
@@ -52,11 +65,28 @@ void hana_base_view_cycle(void) {
 #endif
 
     apply_base_view();
+#endif
 }
 
 #if IS_ENABLED(CONFIG_SETTINGS)
 static int base_view_settings_set(const char *name, size_t len,
                                   settings_read_cb read_cb, void *cb_arg) {
+    if (strcmp(name, "compact_mode") == 0) {
+        uint8_t mode;
+        if (len != sizeof(mode)) {
+            return -EINVAL;
+        }
+        int rc = read_cb(cb_arg, &mode, sizeof(mode));
+        if (rc < 0) {
+            return rc;
+        }
+        compact_view_mode = mode ? 1 : 0;
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
+        zmk_dongle_display_set_compact_view(compact_view_mode != 0);
+#endif
+        return 0;
+    }
+
     if (strcmp(name, "mode3") == 0) {
         uint8_t mode;
 
