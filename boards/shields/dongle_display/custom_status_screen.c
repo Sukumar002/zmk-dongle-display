@@ -132,6 +132,8 @@ lv_obj_t *zmk_display_status_screen() {
                  LV_ALIGN_BOTTOM_MID, 0, 0);
 #endif
 
+    zmk_widget_layer_status_compact_init(screen);
+
     compact_widgets_ready = true;
     zmk_dongle_display_set_compact_view(hana_base_view_is_compact_modifiers());
     return screen;
