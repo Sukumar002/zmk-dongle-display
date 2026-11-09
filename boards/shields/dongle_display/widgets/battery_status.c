@@ -391,8 +391,18 @@ int zmk_widget_dongle_battery_status_init(struct zmk_widget_dongle_battery_statu
         if (SOURCE_OFFSET && i == 0) {
             lv_obj_set_pos(image_canvas, -24, -8); lv_obj_set_pos(charge_canvas, -24, -8); lv_obj_set_pos(battery_label, -24, -8);
         } else {
-            const int half = i - SOURCE_OFFSET; const int y = half == 0 ? 3 : 19;
-            lv_obj_set_pos(battery_label, 79, y); lv_obj_set_pos(image_canvas, 108, y); lv_obj_set_pos(charge_canvas, 108, y);
+            /*
+             * Keep the full four-character percentage label clear of the
+             * battery glyph. The previous x=79 / x=108 placement let the
+             * glyph cover the trailing digit (e.g. 40 appeared as 4).
+             * Align the glyph to the extreme right edge and move the rows
+             * closer together to leave the bottom CNS badge unobstructed.
+             */
+            const int half = i - SOURCE_OFFSET;
+            const int y = half == 0 ? 1 : 13;
+            lv_obj_set_pos(battery_label, 72, y);
+            lv_obj_set_pos(image_canvas, 110, y);
+            lv_obj_set_pos(charge_canvas, 110, y);
         }
         lv_obj_add_flag(image_canvas, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(battery_label, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(charge_canvas, LV_OBJ_FLAG_HIDDEN);
         battery_objects[i] = (struct battery_object){ .symbol=image_canvas, .label=battery_label, .charge_icon=charge_canvas };
