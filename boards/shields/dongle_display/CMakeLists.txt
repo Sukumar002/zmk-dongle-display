@@ -1,15 +1,13 @@
 # This shield is only present on the central dongle target. Create one
-# Zephyr library and add the selected renderer to it; calling zephyr_library()
-# separately for LVGL and raw modes creates the same CMake target twice.
+# Zephyr library and add the LVGL status screen; split transport is untouched.
 if((NOT CONFIG_ZMK_SPLIT) OR CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
-    zephyr_library()
-    zephyr_library_include_directories(${CMAKE_SOURCE_DIR}/include)
-
-    if(CONFIG_ZMK_DISPLAY AND CONFIG_ZMK_DISPLAY_STATUS_SCREEN_CUSTOM AND NOT CONFIG_DONGLE_DISPLAY_RAW_DASHBOARD)
-        zephyr_library_sources(${ZEPHYR_BASE}/misc/empty_file.c)
+    if(CONFIG_ZMK_DISPLAY AND CONFIG_ZMK_DISPLAY_STATUS_SCREEN_CUSTOM)
+        zephyr_library()
+        zephyr_library_include_directories(${CMAKE_SOURCE_DIR}/include)
         zephyr_library_include_directories(${ZEPHYR_LVGL_MODULE_DIR})
         zephyr_library_include_directories(${ZEPHYR_BASE}/lib/gui/lvgl/)
         zephyr_library_include_directories(${ZEPHYR_BASE}/drivers)
+        zephyr_library_sources(${ZEPHYR_BASE}/misc/empty_file.c)
         zephyr_library_sources(custom_status_screen.c)
         zephyr_library_sources(${CMAKE_CURRENT_LIST_DIR}/../../../src/hana_base_view.c)
 
@@ -37,9 +35,5 @@ if((NOT CONFIG_ZMK_SPLIT) OR CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
             zephyr_library_sources(widgets/wpm_status.c)
             zephyr_library_sources(widgets/wpm_status_sym.c)
         endif()
-    endif()
-
-    if(CONFIG_DONGLE_DISPLAY_RAW_DASHBOARD)
-        zephyr_library_sources(raw_dashboard.c)
     endif()
 endif()
