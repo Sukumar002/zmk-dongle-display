@@ -14,9 +14,9 @@ config ZMK_DONGLE_DISPLAY_COMPACT_128X32
     bool "Use compact LVGL layout for 128x32 dongle OLEDs"
     default n
     help
-      Use only the connection indicators and stacked battery widget on the
-      compact 128x32 display. This avoids placing 64px-only widgets on a
-      32px-tall panel.
+      Use the connection/battery dashboard and the alternate modifier-family
+      view on the compact 128x32 display. Active HID locks use a centered
+      badge, and timeout feedback uses a full-screen overlay.
 
 
 choice ZMK_DISPLAY_STATUS_SCREEN
