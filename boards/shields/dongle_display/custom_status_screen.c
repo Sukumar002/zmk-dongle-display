@@ -12,13 +12,10 @@
 #include "widgets/wpm_status.h"
 #include "widgets/timeout_status.h"
 #include "compact_renderer.h"
-#include <zephyr/kernel.h>
+
 #include <zephyr/logging/log.h>
 #include <hana_base_view.h>
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
-
-#define LAYOUT_SHIFT_FLASH_MS 700
-#define LAYOUT_SHIFT_FLASH_REFRESH_MS 30
 
 static struct zmk_widget_output_status output_status_widget;
 static struct zmk_widget_timeout_status timeout_status_widget;
@@ -30,9 +27,9 @@ static struct zmk_widget_layer_status layer_status_widget;
 #endif
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_MODIFIERS)
 static struct zmk_widget_modifiers modifiers_widget;
+#endif
 #if IS_ENABLED(CONFIG_ZMK_HID_INDICATORS)
 static struct zmk_widget_hid_indicators hid_indicators_widget;
-#endif
 #endif
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_BONGO_CAT)
 static struct zmk_widget_bongo_cat bongo_cat_widget;
@@ -40,185 +37,46 @@ static struct zmk_widget_bongo_cat bongo_cat_widget;
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_WPM)
 static struct zmk_widget_wpm_status wpm_status_widget;
 #endif
+
 static lv_obj_t *screen_root;
-static lv_obj_t *layout_shift_flash_obj;
-static lv_obj_t *layout_shift_flash_labels[4];
-static lv_timer_t *layout_shift_flash_timer;
-static int64_t layout_shift_flash_deadline;
 static bool timeout_overlay_active;
 lv_style_t global_style;
 
-void zmk_display_compact_set_modifier_view(bool enabled);
+void zmk_display_compact_set_modifier_view(bool enabled) {
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
+    zmk_compact_renderer_set_modifier_view(enabled);
+#else
+    ARG_UNUSED(enabled);
+#endif
+}
+
+/* Full-screen OS flash feedback is intentionally disabled on the 128x32
+ * layout so the connection and battery/layer regions remain continuously live. */
+void hana_base_view_flash_layout_shift(bool windows_mode) {
+    ARG_UNUSED(windows_mode);
+}
 
 void zmk_display_timeout_overlay_set(bool active) {
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
     if (timeout_overlay_active == active) return;
     timeout_overlay_active = active;
     zmk_compact_renderer_set_visible(!active);
-
-    if (active) {
-        if (output_status_widget.obj)
-            zmk_widget_output_status_set_hidden(&output_status_widget, true);
-#if IS_ENABLED(CONFIG_ZMK_BATTERY)
-        if (dongle_battery_status_widget.obj)
-            zmk_widget_dongle_battery_status_set_hidden(&dongle_battery_status_widget, true);
-#endif
-#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_LAYER)
-        if (layer_status_widget.obj) {
-            zmk_widget_layer_status_set_overlay_active(true);
-            lv_obj_add_flag(zmk_widget_layer_status_obj(&layer_status_widget), LV_OBJ_FLAG_HIDDEN);
-        }
-#endif
-#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_MODIFIERS)
-        if (modifiers_widget.obj)
-            lv_obj_add_flag(zmk_widget_modifiers_obj(&modifiers_widget), LV_OBJ_FLAG_HIDDEN);
-#endif
-#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_BONGO_CAT)
-        if (bongo_cat_widget.obj)
-            lv_obj_add_flag(zmk_widget_bongo_cat_obj(&bongo_cat_widget), LV_OBJ_FLAG_HIDDEN);
-#endif
-#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_WPM)
-        if (wpm_status_widget.obj)
-            lv_obj_add_flag(zmk_widget_wpm_status_obj(&wpm_status_widget), LV_OBJ_FLAG_HIDDEN);
-#endif
-    } else {
-        if (output_status_widget.obj)
-            zmk_widget_output_status_set_hidden(&output_status_widget, false);
-#if IS_ENABLED(CONFIG_ZMK_BATTERY)
-        if (dongle_battery_status_widget.obj)
-            zmk_widget_dongle_battery_status_set_hidden(&dongle_battery_status_widget, false);
-#endif
-#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_LAYER)
-        zmk_widget_layer_status_set_overlay_active(false);
-        zmk_widget_layer_status_refresh();
-#endif
-        zmk_display_compact_set_modifier_view(false);
-    }
 #else
     ARG_UNUSED(active);
-#endif
-}
-
-static void compact_layout_shift_flash_timer_cb(lv_timer_t *timer) {
-#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
-    if (k_uptime_get() < layout_shift_flash_deadline) {
-        if (layout_shift_flash_obj != NULL) lv_obj_move_foreground(layout_shift_flash_obj);
-        return;
-    }
-
-    lv_timer_pause(timer);
-    if (layout_shift_flash_obj != NULL) lv_obj_add_flag(layout_shift_flash_obj, LV_OBJ_FLAG_HIDDEN);
-#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_LAYER)
-    zmk_widget_layer_status_set_overlay_active(false);
-    zmk_widget_layer_status_refresh();
-#endif
-    zmk_display_compact_set_modifier_view(hana_base_view_is_compact_modifier_view());
-#else
-    ARG_UNUSED(timer);
-#endif
-}
-
-static void compact_layout_shift_flash_create(void) {
-    if (layout_shift_flash_obj != NULL || screen_root == NULL) return;
-
-    layout_shift_flash_obj = lv_obj_create(screen_root);
-    lv_obj_set_size(layout_shift_flash_obj, 128, 32);
-    lv_obj_set_style_bg_color(layout_shift_flash_obj, lv_color_white(), 0);
-    lv_obj_set_style_bg_opa(layout_shift_flash_obj, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(layout_shift_flash_obj, 0, 0);
-    lv_obj_set_style_pad_all(layout_shift_flash_obj, 0, 0);
-
-    for (int i = 0; i < 4; i++) {
-        lv_obj_t *cell = lv_obj_create(layout_shift_flash_obj);
-        lv_obj_set_size(cell, 31, 32);
-        lv_obj_set_style_radius(cell, 0, 0);
-        lv_obj_set_style_border_width(cell, 1, 0);
-        lv_obj_set_style_border_color(cell, lv_color_white(), 0);
-        lv_obj_set_style_bg_color(cell, lv_color_black(), 0);
-        lv_obj_set_style_bg_opa(cell, LV_OPA_COVER, 0);
-        lv_obj_set_style_pad_all(cell, 0, 0);
-        lv_obj_set_pos(cell, i * 32, 0);
-
-        layout_shift_flash_labels[i] = lv_label_create(cell);
-        lv_obj_center(layout_shift_flash_labels[i]);
-        lv_obj_set_style_text_color(layout_shift_flash_labels[i], lv_color_white(), 0);
-    }
-    lv_obj_add_flag(layout_shift_flash_obj, LV_OBJ_FLAG_HIDDEN);
-}
-
-void hana_base_view_flash_layout_shift(bool windows_mode) {
-#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
-    if (screen_root == NULL) return;
-
-    compact_layout_shift_flash_create();
-    static const char *const mac_names[4] = { "CTRL", "OPT", "CMD", "SHIFT" };
-    static const char *const windows_names[4] = { "CTRL", "WIN", "ALT", "SHIFT" };
-    const char *const *names = windows_mode ? windows_names : mac_names;
-    for (int i = 0; i < 4; i++) lv_label_set_text(layout_shift_flash_labels[i], names[i]);
-
-#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_LAYER)
-    zmk_widget_layer_status_set_overlay_active(true);
-#endif
-    lv_obj_clear_flag(layout_shift_flash_obj, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_move_foreground(layout_shift_flash_obj);
-    layout_shift_flash_deadline = k_uptime_get() + LAYOUT_SHIFT_FLASH_MS;
-
-    if (layout_shift_flash_timer == NULL) {
-        layout_shift_flash_timer =
-            lv_timer_create(compact_layout_shift_flash_timer_cb,
-                            LAYOUT_SHIFT_FLASH_REFRESH_MS, NULL);
-        lv_timer_pause(layout_shift_flash_timer);
-    }
-    lv_timer_set_period(layout_shift_flash_timer, LAYOUT_SHIFT_FLASH_REFRESH_MS);
-    lv_timer_reset(layout_shift_flash_timer);
-    lv_timer_resume(layout_shift_flash_timer);
-#else
-    ARG_UNUSED(windows_mode);
-#endif
-}
-
-/* The 128x32 base view always keeps the full-size connection and battery
- * widgets visible. Modifier-view cycling belongs to the taller dashboard. */
-void zmk_display_compact_set_modifier_view(bool enabled) {
-#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
-    ARG_UNUSED(enabled);
-    if (output_status_widget.obj) {
-        if (timeout_overlay_active)
-            zmk_widget_output_status_set_hidden(&output_status_widget, true);
-        else
-            zmk_widget_output_status_set_hidden(&output_status_widget, false);
-    }
-#if IS_ENABLED(CONFIG_ZMK_BATTERY)
-    if (dongle_battery_status_widget.obj) {
-        if (timeout_overlay_active)
-            zmk_widget_dongle_battery_status_set_hidden(&dongle_battery_status_widget, true);
-        else
-            zmk_widget_dongle_battery_status_set_hidden(&dongle_battery_status_widget, false);
-    }
-#endif
-#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_MODIFIERS)
-    if (modifiers_widget.obj)
-        lv_obj_add_flag(zmk_widget_modifiers_obj(&modifiers_widget), LV_OBJ_FLAG_HIDDEN);
-#endif
-#else
-    ARG_UNUSED(enabled);
 #endif
 }
 
 lv_obj_t *zmk_display_status_screen() {
     screen_root = lv_obj_create(NULL);
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
-    /* The theme can assign a flex/grid layout to screen objects. Positional
-     * child coordinates are ignored while a layout engine is active. */
+    /* Use the physical panel bounds; do not inherit theme padding/layout. */
     lv_obj_set_layout(screen_root, LV_LAYOUT_NONE);
-    /* A screen root created with lv_obj_create inherits theme padding and
-     * border. That insets every aligned widget (and clips the 128x32 layout).
-     * Compact mode uses the physical panel bounds as its coordinate origin. */
     lv_obj_remove_style_all(screen_root);
     lv_obj_set_style_pad_all(screen_root, 0, LV_PART_MAIN);
     lv_obj_set_style_border_width(screen_root, 0, LV_PART_MAIN);
     lv_obj_set_style_bg_opa(screen_root, LV_OPA_COVER, LV_PART_MAIN);
 #endif
+
     lv_style_init(&global_style);
     lv_style_set_bg_color(&global_style, lv_color_white());
     lv_style_set_bg_opa(&global_style, LV_OPA_COVER);
@@ -229,60 +87,59 @@ lv_obj_t *zmk_display_status_screen() {
     lv_obj_add_style(screen_root, &global_style, LV_PART_MAIN);
 
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
+    /* One LVGL canvas owns both dashboard regions and the center lock band. */
     zmk_compact_renderer_init(screen_root);
 #endif
+
     zmk_widget_output_status_init(&output_status_widget, screen_root);
-#if !IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
-    lv_obj_align(zmk_widget_output_status_obj(&output_status_widget), LV_ALIGN_TOP_LEFT, 0, 0);
-#endif
     zmk_widget_timeout_status_init(&timeout_status_widget, screen_root);
 
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_MODIFIERS)
+    zmk_widget_modifiers_init(&modifiers_widget, screen_root);
+#endif
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_LAYER)
+    zmk_widget_layer_status_init(&layer_status_widget, screen_root);
+#endif
+#if IS_ENABLED(CONFIG_ZMK_HID_INDICATORS)
+    zmk_widget_hid_indicators_init(&hid_indicators_widget, screen_root);
+#endif
+#if IS_ENABLED(CONFIG_ZMK_BATTERY)
+    zmk_widget_dongle_battery_status_init(&dongle_battery_status_widget, screen_root);
+#endif
+    zmk_display_compact_set_modifier_view(hana_base_view_is_compact_modifier_view());
+#else
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_WPM)
     zmk_widget_wpm_status_init(&wpm_status_widget, screen_root);
-#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
-    lv_obj_add_flag(zmk_widget_wpm_status_obj(&wpm_status_widget), LV_OBJ_FLAG_HIDDEN);
-#endif
 #endif
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_BONGO_CAT)
     zmk_widget_bongo_cat_init(&bongo_cat_widget, screen_root);
     lv_obj_align(zmk_widget_bongo_cat_obj(&bongo_cat_widget), LV_ALIGN_BOTTOM_RIGHT, 0, 0);
-#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
-    lv_obj_add_flag(zmk_widget_bongo_cat_obj(&bongo_cat_widget), LV_OBJ_FLAG_HIDDEN);
-#endif
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_WPM)
     lv_obj_align(zmk_widget_wpm_status_obj(&wpm_status_widget), LV_ALIGN_BOTTOM_RIGHT, 0, 0);
 #endif
 #endif
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_MODIFIERS)
     zmk_widget_modifiers_init(&modifiers_widget, screen_root);
-#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
-    lv_obj_align(zmk_widget_modifiers_obj(&modifiers_widget), LV_ALIGN_CENTER, 0, 0);
-    lv_obj_add_flag(zmk_widget_modifiers_obj(&modifiers_widget), LV_OBJ_FLAG_HIDDEN);
-#else
     lv_obj_align(zmk_widget_modifiers_obj(&modifiers_widget), LV_ALIGN_BOTTOM_LEFT, 0, 0);
 #endif
-#if IS_ENABLED(CONFIG_ZMK_HID_INDICATORS) && !IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
+#if IS_ENABLED(CONFIG_ZMK_HID_INDICATORS)
     zmk_widget_hid_indicators_init(&hid_indicators_widget, screen_root);
-    lv_obj_align_to(zmk_widget_hid_indicators_obj(&hid_indicators_widget), zmk_widget_modifiers_obj(&modifiers_widget), LV_ALIGN_OUT_TOP_LEFT, 0, -2);
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_MODIFIERS)
+    lv_obj_align_to(zmk_widget_hid_indicators_obj(&hid_indicators_widget),
+                    zmk_widget_modifiers_obj(&modifiers_widget),
+                    LV_ALIGN_OUT_TOP_LEFT, 0, -2);
 #endif
 #endif
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_LAYER)
     zmk_widget_layer_status_init(&layer_status_widget, screen_root);
-#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
-    lv_obj_align(zmk_widget_layer_status_obj(&layer_status_widget), LV_ALIGN_CENTER, 0, 0);
-    zmk_widget_layer_status_set_base_text_enabled(false);
-#else
     lv_obj_align(zmk_widget_layer_status_obj(&layer_status_widget), LV_ALIGN_BOTTOM_RIGHT, 0, 0);
-#endif
 #endif
 #if IS_ENABLED(CONFIG_ZMK_BATTERY)
     zmk_widget_dongle_battery_status_init(&dongle_battery_status_widget, screen_root);
-#if !IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
-    lv_obj_align(zmk_widget_dongle_battery_status_obj(&dongle_battery_status_widget), LV_ALIGN_TOP_RIGHT, 0, 0);
+    lv_obj_align(zmk_widget_dongle_battery_status_obj(&dongle_battery_status_widget),
+                 LV_ALIGN_TOP_RIGHT, 0, 0);
 #endif
-#endif
-#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
-    zmk_display_compact_set_modifier_view(false);
 #endif
     return screen_root;
 }
