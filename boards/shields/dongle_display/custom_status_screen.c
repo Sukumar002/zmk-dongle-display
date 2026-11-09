@@ -97,7 +97,7 @@ lv_obj_t *zmk_display_status_screen() {
 
 #if IS_ENABLED(CONFIG_ZMK_UNIVERSAL_DONGLE_CENTRAL_IDENTITY)
     zmk_universal_oled_status_init(screen, zmk_widget_timeout_status_obj(&timeout_status_widget));
-#elif defined(CONFIG_ZMK_KEYBOARD_NAME)
+#elif IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_STARTUP_BANNER) && defined(CONFIG_ZMK_KEYBOARD_NAME)
     zmk_widget_timeout_status_show_keyboard_name(CONFIG_ZMK_KEYBOARD_NAME);
 #endif
     return screen;
@@ -152,7 +152,7 @@ lv_obj_t *zmk_display_status_screen() {
 
 #if IS_ENABLED(CONFIG_ZMK_UNIVERSAL_DONGLE_CENTRAL_IDENTITY)
     zmk_universal_oled_status_init(screen, zmk_widget_timeout_status_obj(&timeout_status_widget));
-#elif defined(CONFIG_ZMK_KEYBOARD_NAME)
+#elif IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_STARTUP_BANNER) && defined(CONFIG_ZMK_KEYBOARD_NAME)
     zmk_widget_timeout_status_show_keyboard_name(CONFIG_ZMK_KEYBOARD_NAME);
 #endif
     return screen;
