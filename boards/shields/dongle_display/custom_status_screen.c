@@ -47,11 +47,6 @@ static struct zmk_widget_wpm_status wpm_status_widget;
 
 lv_style_t global_style;
 
-static bool is_compact_oled(void) {
-    lv_display_t *display = lv_display_get_default();
-    return display != NULL && lv_display_get_vertical_resolution(display) <= 32;
-}
-
 lv_obj_t *zmk_display_status_screen() {
     lv_obj_t *screen;
 
@@ -68,12 +63,6 @@ lv_obj_t *zmk_display_status_screen() {
     
     zmk_widget_output_status_init(&output_status_widget, screen);
     lv_obj_align(zmk_widget_output_status_obj(&output_status_widget), LV_ALIGN_TOP_LEFT, 0, 0);
-
-    /* Create battery widget before layer status so the initial layer can hide/show it. */
-#if IS_ENABLED(CONFIG_ZMK_BATTERY) && !IS_ENABLED(CONFIG_ZMK_UNIVERSAL_DONGLE_CENTRAL_IDENTITY)
-    zmk_widget_dongle_battery_status_init(&dongle_battery_status_widget, screen);
-    lv_obj_align(zmk_widget_dongle_battery_status_obj(&dongle_battery_status_widget), LV_ALIGN_TOP_RIGHT, 0, 0);
-#endif
 
     zmk_widget_timeout_status_init(&timeout_status_widget, screen);
     /* Temporary timeout feedback shares the center band with the active keyboard name. */
@@ -106,27 +95,14 @@ lv_obj_t *zmk_display_status_screen() {
 
 #if IS_ENABLED(CONFIG_ZMK_HID_INDICATORS)
     zmk_widget_hid_indicators_init(&hid_indicators_widget, screen);
-    if (is_compact_oled()) {
-        /*
-         * Keep the existing boxed C/N/S indicator visible in the bottom strip.
-         * The 8px font plus its 1px outline gives a 10px capsule, positioned
-         * over the otherwise unused lower part of the battery column.
-         */
-        lv_obj_set_height(zmk_widget_hid_indicators_obj(&hid_indicators_widget), 10);
-        lv_obj_set_style_radius(zmk_widget_hid_indicators_obj(&hid_indicators_widget),
-                                4, LV_PART_MAIN);
-        lv_obj_align(zmk_widget_hid_indicators_obj(&hid_indicators_widget),
-                     LV_ALIGN_BOTTOM_RIGHT, 0, 0);
-    } else {
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_CENTERED_LOCKS)
-        lv_obj_align(zmk_widget_hid_indicators_obj(&hid_indicators_widget),
-                     LV_ALIGN_BOTTOM_MID, 0, -1);
+    lv_obj_align(zmk_widget_hid_indicators_obj(&hid_indicators_widget),
+                 LV_ALIGN_BOTTOM_MID, 0, -1);
 #elif IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_MODIFIERS)
-        lv_obj_align_to(zmk_widget_hid_indicators_obj(&hid_indicators_widget),
-                        zmk_widget_modifiers_obj(&modifiers_widget),
-                        LV_ALIGN_OUT_TOP_LEFT, 0, -2);
+    lv_obj_align_to(zmk_widget_hid_indicators_obj(&hid_indicators_widget),
+                    zmk_widget_modifiers_obj(&modifiers_widget),
+                    LV_ALIGN_OUT_TOP_LEFT, 0, -2);
 #endif
-    }
 #endif
 
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_LAYER)
@@ -135,15 +111,13 @@ lv_obj_t *zmk_display_status_screen() {
      * BASE uses Bongo Cat + WPM. Every other layer replaces that entire visual
      * region with one bold layer-name label.
      */
-    if (is_compact_oled()) {
-        lv_obj_align(zmk_widget_layer_status_obj(&layer_status_widget),
-                     LV_ALIGN_TOP_RIGHT, 0, 5);
-    } else {
-        lv_obj_align(zmk_widget_layer_status_obj(&layer_status_widget),
-                     LV_ALIGN_BOTTOM_RIGHT, 0, 0);
-    }
+    lv_obj_align(zmk_widget_layer_status_obj(&layer_status_widget), LV_ALIGN_BOTTOM_RIGHT, 0, 0);
 #endif
 
+#if IS_ENABLED(CONFIG_ZMK_BATTERY) && !IS_ENABLED(CONFIG_ZMK_UNIVERSAL_DONGLE_CENTRAL_IDENTITY)
+    zmk_widget_dongle_battery_status_init(&dongle_battery_status_widget, screen);
+    lv_obj_align(zmk_widget_dongle_battery_status_obj(&dongle_battery_status_widget), LV_ALIGN_TOP_RIGHT, 0, 0);
+#endif
 
     return screen;
 }
