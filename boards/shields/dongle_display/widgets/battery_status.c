@@ -316,6 +316,15 @@ static struct battery_state central_battery_status_get_state(const zmk_event_t *
 }
 
 static struct battery_state battery_status_get_state(const zmk_event_t *eh) {
+    /* Do not mistake the dongle's own battery for half L during initial draw. */
+    if (eh == NULL) {
+        return (struct battery_state) {
+            .source = 0,
+            .level = 0,
+            .charging = false,
+            .present = false,
+        };
+    }
     if (as_zmk_peripheral_battery_state_changed(eh) != NULL) {
         return peripheral_battery_status_get_state(eh);
     } else if (as_zmk_peripheral_charge_state_changed(eh) != NULL) {
