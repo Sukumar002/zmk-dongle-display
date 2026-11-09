@@ -127,9 +127,20 @@ static void timeout_status_update_cb(struct timeout_state state) {
         return;
     }
 
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
+    /*
+     * ZMK's initial display idle timeout is 2 seconds. It is an initialization
+     * value, not a user-selected timeout, so don't show it over the startup
+     * connection indicators. The Hana timeout behavior offers 30s/60s/300s/
+     * Never, so 2s is not a selectable value.
+     */
+    if (state.kind == ZMK_RUNTIME_TIMEOUT_DISPLAY && state.timeout_ms == 2000) {
+        return;
+    }
+#endif
+
     /* Runtime timeout feedback keeps its icon; board-name feedback is text-only. */
     lv_obj_clear_flag(active_widget->icon, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_align_to(active_widget->label, active_widget->icon, LV_ALIGN_OUT_RIGHT_MID, 4, 0);
     if (state.kind == ZMK_RUNTIME_TIMEOUT_DISPLAY) {
         draw_usb_icon(active_widget->icon);
     } else {
@@ -137,6 +148,23 @@ static void timeout_status_update_cb(struct timeout_state state) {
     }
 
     set_timeout_text(active_widget->label, state.kind, state.timeout_ms);
+
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
+    /* Centre the icon + value as one group inside the opaque full-screen overlay. */
+    lv_obj_update_layout(active_widget->label);
+    lv_coord_t label_width = lv_obj_get_width(active_widget->label);
+    lv_coord_t group_width = ICON_W + 4 + label_width;
+    lv_coord_t screen_width = lv_obj_get_width(active_widget->obj);
+    lv_coord_t screen_height = lv_obj_get_height(active_widget->obj);
+    lv_obj_set_pos(active_widget->icon, (screen_width - group_width) / 2,
+                   (screen_height - ICON_H) / 2);
+    lv_obj_align_to(active_widget->label, active_widget->icon,
+                    LV_ALIGN_OUT_RIGHT_MID, 4, 0);
+#else
+    lv_obj_align(active_widget->icon, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_align_to(active_widget->label, active_widget->icon,
+                    LV_ALIGN_OUT_RIGHT_MID, 4, 0);
+#endif
 
     lv_obj_clear_flag(active_widget->obj, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(active_widget->obj);
@@ -158,11 +186,24 @@ ZMK_SUBSCRIPTION(widget_timeout_status, zmk_runtime_timeout_changed);
 
 int zmk_widget_timeout_status_init(struct zmk_widget_timeout_status *widget, lv_obj_t *parent) {
     widget->obj = lv_obj_create(parent);
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
+    /* An opaque, full-panel overlay hides every dashboard element during feedback. */
+    lv_obj_set_size(widget->obj, lv_obj_get_width(parent), lv_obj_get_height(parent));
+    lv_obj_align(widget->obj, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_style_bg_color(widget->obj, lv_color_white(), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(widget->obj, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(widget->obj, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(widget->obj, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(widget->obj, 0, LV_PART_MAIN);
+#else
     lv_obj_set_size(widget->obj, 112, 14);
+#endif
 
     widget->icon = lv_canvas_create(widget->obj);
     lv_canvas_set_buffer(widget->icon, icon_buf, ICON_W, ICON_H, LV_COLOR_FORMAT_L8);
+#if !IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
     lv_obj_align(widget->icon, LV_ALIGN_LEFT_MID, 0, 0);
+#endif
 
     widget->label = lv_label_create(widget->obj);
     lv_obj_align_to(widget->label, widget->icon, LV_ALIGN_OUT_RIGHT_MID, 4, 0);
