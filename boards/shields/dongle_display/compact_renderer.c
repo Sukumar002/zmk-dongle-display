@@ -7,6 +7,7 @@
 #include <zephyr/kernel.h>
 #include <string.h>
 #include <lvgl.h>
+#include <dt-bindings/zmk/modifiers.h>
 #include "compact_renderer.h"
 
 #define COMPACT_W 128
