@@ -147,6 +147,7 @@ static void draw_battery(lv_obj_t *canvas, uint8_t level, bool usb_present) {
 }
 
 #endif
+#if !IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
 static void draw_charge_flash(lv_obj_t *canvas) {
     lv_canvas_fill_bg(canvas, lv_color_black(), LV_OPA_TRANSP);
 
@@ -184,6 +185,7 @@ static void stop_charge_breathing(lv_obj_t *icon) {
     lv_anim_del(icon, charge_opa_anim_cb);
     lv_obj_set_style_opa(icon, LV_OPA_COVER, LV_PART_MAIN);
 }
+#endif
 
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
 static void set_battery_symbol(lv_obj_t *widget, struct battery_state state) {
