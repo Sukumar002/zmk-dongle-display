@@ -126,8 +126,12 @@ static void change_size_object(void *obj, int32_t from, int32_t to) {
 static void set_status_symbol(struct zmk_widget_output_status *widget, struct output_status_state state) {
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
     enum zmk_transport transport = state.selected_endpoint.transport;
-    bool connected = transport != ZMK_TRANSPORT_NONE;
-    zmk_compact_renderer_set_output(state.usb_is_hid_ready && connected,
+    if (transport == ZMK_TRANSPORT_NONE) {
+        transport = state.preferred_transport;
+    }
+    const bool usb_active = transport == ZMK_TRANSPORT_USB;
+    zmk_compact_renderer_set_output(usb_active,
+                                    state.usb_is_hid_ready && usb_active,
                                     state.active_profile_connected,
                                     state.active_profile_bonded,
                                     state.active_profile_index);
