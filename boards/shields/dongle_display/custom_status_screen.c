@@ -71,14 +71,6 @@ lv_obj_t *zmk_display_status_screen() {
     zmk_widget_timeout_status_init(&timeout_status_widget, screen);
     lv_obj_align(zmk_widget_timeout_status_obj(&timeout_status_widget), LV_ALIGN_CENTER, 0, 0);
 
-#if IS_ENABLED(CONFIG_ZMK_UNIVERSAL_DONGLE_CENTRAL_IDENTITY)
-    /* Dynamic HANA/CHOCOFI identity for the universal central dongle. */
-    zmk_universal_oled_status_init(screen, zmk_widget_timeout_status_obj(&timeout_status_widget));
-#elif defined(CONFIG_ZMK_KEYBOARD_NAME)
-    /* Standard Hana/Chocofi central builds use their configured keyboard name. */
-    zmk_widget_timeout_status_show_keyboard_name(CONFIG_ZMK_KEYBOARD_NAME);
-#endif
-
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
     /*
      * Compact 128x32 layout: preserve the connection indicators on the left
@@ -102,6 +94,12 @@ lv_obj_t *zmk_display_status_screen() {
     zmk_widget_layer_status_init(&layer_status_widget, screen);
     lv_obj_align(zmk_widget_layer_status_obj(&layer_status_widget),
                  LV_ALIGN_TOP_RIGHT, 0, 0);
+
+#if IS_ENABLED(CONFIG_ZMK_UNIVERSAL_DONGLE_CENTRAL_IDENTITY)
+    zmk_universal_oled_status_init(screen, zmk_widget_timeout_status_obj(&timeout_status_widget));
+#elif defined(CONFIG_ZMK_KEYBOARD_NAME)
+    zmk_widget_timeout_status_show_keyboard_name(CONFIG_ZMK_KEYBOARD_NAME);
+#endif
     return screen;
 #else
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_WPM)
@@ -152,6 +150,11 @@ lv_obj_t *zmk_display_status_screen() {
     lv_obj_align(zmk_widget_dongle_battery_status_obj(&dongle_battery_status_widget), LV_ALIGN_TOP_RIGHT, 0, 0);
 #endif
 
+#if IS_ENABLED(CONFIG_ZMK_UNIVERSAL_DONGLE_CENTRAL_IDENTITY)
+    zmk_universal_oled_status_init(screen, zmk_widget_timeout_status_obj(&timeout_status_widget));
+#elif defined(CONFIG_ZMK_KEYBOARD_NAME)
+    zmk_widget_timeout_status_show_keyboard_name(CONFIG_ZMK_KEYBOARD_NAME);
+#endif
     return screen;
 #endif
 }
