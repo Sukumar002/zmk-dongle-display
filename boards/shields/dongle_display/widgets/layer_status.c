@@ -15,7 +15,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
 #include "layer_status.h"
 #include "battery_status.h"
-#include <hana_base_view.h>
+#include <string.h>
 
 static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
 static bool base_text_enabled;
@@ -36,19 +36,38 @@ static const char *fallback_layer_name(uint8_t index) {
     }
 }
 
+static bool layer_is_base(struct layer_status_state state) {
+    /* Use the actual keymap layer name, not its display index. Studio can
+     * reorder layers, and Num must never be mistaken for the base layer. */
+    if (state.name != NULL && state.name[0] != '\0') {
+        return strcmp(state.name, "BASE") == 0 ||
+               strcmp(state.name, "Base") == 0;
+    }
+
+    /* Only use the conventional first-layer fallback when no name exists. */
+    return state.index == 0;
+}
+
 static void set_layer_text(struct zmk_widget_layer_status *widget,
                            struct layer_status_state state) {
     widget->layer = state.index;
+    const bool base_layer = layer_is_base(state);
 
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
-    const bool base_layer = hana_base_view_is_base_layer(state.index);
+    /* The 32px base view is always the battery panel. Never draw BASE over it,
+     * even while the user cycles the 64px base-view modes. */
     zmk_widget_dongle_battery_status_set_hidden(!base_layer);
-#endif
-
-    if (hana_base_view_is_base_layer(state.index) && !base_text_enabled) {
+    if (base_layer) {
         lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
         return;
     }
+#else
+    /* On 64px displays, BASE participates in the existing Base/WPM/Cat cycle. */
+    if (base_layer && !base_text_enabled) {
+        lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
+#endif
 
     const char *text = state.name;
     if (text == NULL || text[0] == '\0') {
