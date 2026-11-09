@@ -127,16 +127,27 @@ static void timeout_status_update_cb(struct timeout_state state) {
         return;
     }
 
-#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
-    /*
-     * ZMK's initial display idle timeout is 2 seconds. It is an initialization
-     * value, not a user-selected timeout, so don't show it over the startup
-     * connection indicators. The Hana timeout behavior offers 30s/60s/300s/
-     * Never, so 2s is not a selectable value.
-     */
+/* ZMK emits 2000ms as its initial display-idle timeout during boot.
+     * This is an internal initialization value, not a user-selected timeout.
+     * Suppress it on every OLED size; real timeout changes remain visible. */
     if (state.kind == ZMK_RUNTIME_TIMEOUT_DISPLAY && state.timeout_ms == 2000) {
         return;
     }
+
+    /* A real timeout event takes precedence over any startup/profile banner. */
+    lv_obj_add_flag(active_widget->banner_bold, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_style_text_font(active_widget->label, &lv_font_unscii_8, LV_PART_MAIN);
+    lv_obj_set_style_text_color(active_widget->label, lv_color_black(), LV_PART_MAIN);
+    lv_obj_set_style_text_letter_space(active_widget->label, 1, LV_PART_MAIN);
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
+    lv_obj_set_size(active_widget->obj, lv_obj_get_width(lv_obj_get_parent(active_widget->obj)),
+                    lv_obj_get_height(lv_obj_get_parent(active_widget->obj)));
+    lv_obj_align(active_widget->obj, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_style_bg_color(active_widget->obj, lv_color_white(), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(active_widget->obj, LV_OPA_COVER, LV_PART_MAIN);
+#else
+    lv_obj_set_size(active_widget->obj, 112, 14);
+    lv_obj_set_style_bg_opa(active_widget->obj, LV_OPA_TRANSP, LV_PART_MAIN);
 #endif
 
     /* Runtime timeout feedback keeps its icon; board-name feedback is text-only. */
@@ -207,6 +218,8 @@ int zmk_widget_timeout_status_init(struct zmk_widget_timeout_status *widget, lv_
 
     widget->label = lv_label_create(widget->obj);
     lv_obj_align_to(widget->label, widget->icon, LV_ALIGN_OUT_RIGHT_MID, 4, 0);
+    widget->banner_bold = lv_label_create(widget->obj);
+    lv_obj_add_flag(widget->banner_bold, LV_OBJ_FLAG_HIDDEN);
 
     widget->hide_timer = lv_timer_create(hide_timer_cb, 2500, widget);
     lv_timer_pause(widget->hide_timer);
@@ -235,16 +248,34 @@ void zmk_widget_timeout_status_show_keyboard_name(const char *name) {
     }
     uppercase_name[i] = '\0';
 
-    /* The board switch banner is just the uppercase name; no keyboard glyph. */
+    /* Full-panel startup/profile banner: bright, heavier text on black. */
     lv_obj_add_flag(active_widget->icon, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_size(active_widget->obj,
+                    lv_obj_get_width(lv_obj_get_parent(active_widget->obj)),
+                    lv_obj_get_height(lv_obj_get_parent(active_widget->obj)));
+    lv_obj_align(active_widget->obj, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_style_bg_color(active_widget->obj, lv_color_black(), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(active_widget->obj, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(active_widget->obj, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(active_widget->obj, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(active_widget->obj, 0, LV_PART_MAIN);
+
     lv_label_set_text(active_widget->label, uppercase_name);
-#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
+    lv_obj_set_style_text_font(active_widget->label, &lv_font_montserrat_12, LV_PART_MAIN);
+    lv_obj_set_style_text_color(active_widget->label, lv_color_white(), LV_PART_MAIN);
+    lv_obj_set_style_text_letter_space(active_widget->label, 1, LV_PART_MAIN);
     lv_obj_update_layout(active_widget->label);
     lv_obj_align(active_widget->label, LV_ALIGN_CENTER, 0, 0);
-#else
-    lv_obj_align(active_widget->label, LV_ALIGN_LEFT_MID, 0, 0);
-#endif
-    /* Inherit the screen's compact unscii_8 font to prevent long names clipping. */
+
+    /* A second one-pixel-offset pass gives the small OLED font a bold weight. */
+    lv_label_set_text(active_widget->banner_bold, uppercase_name);
+    lv_obj_set_style_text_font(active_widget->banner_bold, &lv_font_montserrat_12, LV_PART_MAIN);
+    lv_obj_set_style_text_color(active_widget->banner_bold, lv_color_white(), LV_PART_MAIN);
+    lv_obj_set_style_text_letter_space(active_widget->banner_bold, 1, LV_PART_MAIN);
+    lv_obj_update_layout(active_widget->banner_bold);
+    lv_obj_align(active_widget->banner_bold, LV_ALIGN_CENTER, 1, 0);
+    lv_obj_clear_flag(active_widget->banner_bold, LV_OBJ_FLAG_HIDDEN);
+
     lv_obj_clear_flag(active_widget->obj, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(active_widget->obj);
     lv_timer_set_period(active_widget->hide_timer, 2500);
