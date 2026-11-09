@@ -7,6 +7,7 @@
 #pragma once
 
 #include <lvgl.h>
+#include <stdbool.h>
 #include <zephyr/kernel.h>
 
 struct zmk_widget_dongle_battery_status {
