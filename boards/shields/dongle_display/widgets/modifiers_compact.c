@@ -5,7 +5,6 @@
  */
 
 #include <zephyr/kernel.h>
-
 #include <zephyr/logging/log.h>
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
@@ -16,18 +15,16 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/events/position_state_changed.h>
 #include <zmk/hid.h>
 #include <zmk/keymap.h>
-#include <dt-bindings/zmk/modifiers.h>
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
 
 #include "modifiers_compact.h"
 
 /*
- * Layout-shift OS mode:
- *   map inactive = macOS semantics
- *   map active   = Windows semantics (GUI <-> Alt)
- *
- * Fall back to the old WIN_BASE layer test if the custom map is absent.
+ * Read the same persistent GUI/Alt layout-shift behavior used by the
+ * keyboard keymap. Its active state means Windows; inactive means macOS.
+ * Keep the legacy layer check only as a fallback for configurations that
+ * do not provide the shared layout-shift device.
  */
 #define HANA_WIN_BASE_LAYER 1
 
@@ -54,181 +51,71 @@ static bool hana_layout_shift_windows_mode(void) {
 #define HANA_HAS_GUI_ALT_LAYOUT_SHIFT 0
 #endif
 
-struct modifiers_state {
-    uint8_t modifiers;
+struct compact_layout_state {
     bool windows_mode;
 };
 
-struct modifier_symbol {
-    uint8_t modifier;
-    const lv_img_dsc_t *inactive_icon;
-    const lv_img_dsc_t *active_icon;
-    lv_obj_t *symbol;
-};
-
-/* Every visual state is a symbol-only 9x9 bitmap; no text labels are used. */
-LV_IMG_DECLARE(modifier_control_off);
-LV_IMG_DECLARE(modifier_control_on);
-LV_IMG_DECLARE(modifier_shift_off);
-LV_IMG_DECLARE(modifier_shift_on);
-LV_IMG_DECLARE(modifier_win_off);
-LV_IMG_DECLARE(modifier_win_on);
-LV_IMG_DECLARE(modifier_cmd_off);
-LV_IMG_DECLARE(modifier_cmd_on);
-LV_IMG_DECLARE(modifier_opt_off);
-LV_IMG_DECLARE(modifier_opt_on);
-
-#define NUM_SYMBOLS 4
-#define MODIFIER_BADGE_SIZE 9
-#define MODIFIER_BADGE_STEP 11
-#define MODIFIER_FAMILY_WIDTH 44
-
-/*
- * Four stable slots. The OS-specific symbol and HID mapping are retained:
- * macOS:    Control, Option, Command, Shift
- * Windows:  Control, Windows, Alt, Shift
- */
-static struct modifier_symbol modifier_slots[NUM_SYMBOLS] = {
-    {
-        .modifier = MOD_LCTL | MOD_RCTL,
-        .inactive_icon = &modifier_control_off,
-        .active_icon = &modifier_control_on,
-    },
-    {
-        .modifier = MOD_LALT | MOD_RALT,
-        .inactive_icon = &modifier_opt_off,
-        .active_icon = &modifier_opt_on,
-    },
-    {
-        .modifier = MOD_LGUI | MOD_RGUI,
-        .inactive_icon = &modifier_cmd_off,
-        .active_icon = &modifier_cmd_on,
-    },
-    {
-        .modifier = MOD_LSFT | MOD_RSFT,
-        .inactive_icon = &modifier_shift_off,
-        .active_icon = &modifier_shift_on,
-    },
-};
-
 static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
-static bool current_windows_mode;
 
-static void configure_symbol_family(bool windows_mode) {
-    if (windows_mode) {
-        modifier_slots[0].modifier = MOD_LCTL | MOD_RCTL;
-        modifier_slots[0].inactive_icon = &modifier_control_off;
-        modifier_slots[0].active_icon = &modifier_control_on;
-
-        modifier_slots[1].modifier = MOD_LGUI | MOD_RGUI;
-        modifier_slots[1].inactive_icon = &modifier_win_off;
-        modifier_slots[1].active_icon = &modifier_win_on;
-
-        modifier_slots[2].modifier = MOD_LALT | MOD_RALT;
-        modifier_slots[2].inactive_icon = &modifier_opt_off;
-        modifier_slots[2].active_icon = &modifier_opt_on;
-    } else {
-        modifier_slots[0].modifier = MOD_LCTL | MOD_RCTL;
-        modifier_slots[0].inactive_icon = &modifier_control_off;
-        modifier_slots[0].active_icon = &modifier_control_on;
-
-        modifier_slots[1].modifier = MOD_LALT | MOD_RALT;
-        modifier_slots[1].inactive_icon = &modifier_opt_off;
-        modifier_slots[1].active_icon = &modifier_opt_on;
-
-        modifier_slots[2].modifier = MOD_LGUI | MOD_RGUI;
-        modifier_slots[2].inactive_icon = &modifier_cmd_off;
-        modifier_slots[2].active_icon = &modifier_cmd_on;
-    }
-
-    modifier_slots[3].modifier = MOD_LSFT | MOD_RSFT;
-    modifier_slots[3].inactive_icon = &modifier_shift_off;
-    modifier_slots[3].active_icon = &modifier_shift_on;
-    current_windows_mode = windows_mode;
+static void set_layout_label(
+    struct zmk_widget_compact_modifiers *widget,
+    struct compact_layout_state state
+) {
+    lv_label_set_text(widget->label, state.windows_mode ? "WIN" : "MAC");
 }
 
-static void set_modifiers(struct modifiers_state state) {
-    if (state.windows_mode != current_windows_mode) {
-        configure_symbol_family(state.windows_mode);
-    }
-
-    for (int i = 0; i < NUM_SYMBOLS; i++) {
-        bool active = (state.modifiers & modifier_slots[i].modifier) != 0;
-        if (modifier_slots[i].symbol != NULL) {
-            lv_img_set_src(
-                modifier_slots[i].symbol,
-                active ? modifier_slots[i].active_icon
-                       : modifier_slots[i].inactive_icon
-            );
-        }
-    }
-}
-
-static void modifiers_update_cb(struct modifiers_state state) {
+static void compact_layout_update_cb(struct compact_layout_state state) {
     struct zmk_widget_compact_modifiers *widget;
 
     SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
-        ARG_UNUSED(widget);
-        set_modifiers(state);
+        set_layout_label(widget, state);
     }
 }
 
-static struct modifiers_state modifiers_get_state(const zmk_event_t *eh) {
+static struct compact_layout_state compact_layout_get_state(const zmk_event_t *eh) {
 #if HANA_HAS_GUI_ALT_LAYOUT_SHIFT
     bool windows_mode = hana_layout_shift_windows_mode();
 #else
     bool windows_mode = zmk_keymap_layer_active(HANA_WIN_BASE_LAYER);
 #endif
 
-    return (struct modifiers_state) {
-        .modifiers = zmk_hid_get_explicit_mods(),
+    return (struct compact_layout_state) {
         .windows_mode = windows_mode,
     };
 }
 
 ZMK_DISPLAY_WIDGET_LISTENER(
-    widget_modifiers,
-    struct modifiers_state,
-    modifiers_update_cb,
-    modifiers_get_state
+    widget_compact_layout,
+    struct compact_layout_state,
+    compact_layout_update_cb,
+    compact_layout_get_state
 )
 
-ZMK_SUBSCRIPTION(widget_modifiers, zmk_keycode_state_changed);
-ZMK_SUBSCRIPTION(widget_modifiers, zmk_layer_state_changed);
-ZMK_SUBSCRIPTION(widget_modifiers, zmk_position_state_changed);
+ZMK_SUBSCRIPTION(widget_compact_layout, zmk_keycode_state_changed);
+ZMK_SUBSCRIPTION(widget_compact_layout, zmk_layer_state_changed);
+ZMK_SUBSCRIPTION(widget_compact_layout, zmk_position_state_changed);
 
 int zmk_widget_compact_modifiers_init(
     struct zmk_widget_compact_modifiers *widget,
     lv_obj_t *parent
 ) {
     widget->obj = lv_obj_create(parent);
-    lv_obj_set_size(
-        widget->obj,
-        MODIFIER_FAMILY_WIDTH,
-        MODIFIER_BADGE_SIZE
-    );
+    lv_obj_set_size(widget->obj, 24, 9);
+    lv_obj_set_style_bg_opa(widget->obj, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(widget->obj, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(widget->obj, 0, LV_PART_MAIN);
 
-    /* The four 9x9 badges sit at x=1,12,23,34 with 2px gaps. */
-    for (int i = 0; i < NUM_SYMBOLS; i++) {
-        modifier_slots[i].symbol = lv_img_create(widget->obj);
-        lv_obj_set_pos(
-            modifier_slots[i].symbol,
-            1 + (MODIFIER_BADGE_STEP * i),
-            0
-        );
-    }
+    widget->label = lv_label_create(widget->obj);
+    lv_obj_set_style_text_font(widget->label, &lv_font_unscii_8, LV_PART_MAIN);
+    lv_obj_set_style_text_color(widget->label, lv_color_black(), LV_PART_MAIN);
+    lv_obj_set_style_text_letter_space(widget->label, 1, LV_PART_MAIN);
+    lv_label_set_long_mode(widget->label, LV_LABEL_LONG_CLIP);
+    lv_obj_align(widget->label, LV_ALIGN_LEFT_MID, 0, 0);
 
-#if HANA_HAS_GUI_ALT_LAYOUT_SHIFT
-    current_windows_mode = hana_layout_shift_windows_mode();
-#else
-    current_windows_mode = zmk_keymap_layer_active(HANA_WIN_BASE_LAYER);
-#endif
-    configure_symbol_family(current_windows_mode);
-
-    set_modifiers(modifiers_get_state(NULL));
+    set_layout_label(widget, compact_layout_get_state(NULL));
 
     sys_slist_append(&widgets, &widget->node);
-    widget_modifiers_init();
+    widget_compact_layout_init();
 
     return 0;
 }
