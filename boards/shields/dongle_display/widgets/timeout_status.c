@@ -238,7 +238,12 @@ void zmk_widget_timeout_status_show_keyboard_name(const char *name) {
     /* The board switch banner is just the uppercase name; no keyboard glyph. */
     lv_obj_add_flag(active_widget->icon, LV_OBJ_FLAG_HIDDEN);
     lv_label_set_text(active_widget->label, uppercase_name);
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
+    lv_obj_update_layout(active_widget->label);
+    lv_obj_align(active_widget->label, LV_ALIGN_CENTER, 0, 0);
+#else
     lv_obj_align(active_widget->label, LV_ALIGN_LEFT_MID, 0, 0);
+#endif
     /* Inherit the screen's compact unscii_8 font to prevent long names clipping. */
     lv_obj_clear_flag(active_widget->obj, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(active_widget->obj);
