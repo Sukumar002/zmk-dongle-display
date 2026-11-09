@@ -7,7 +7,6 @@
 #pragma once
 
 #include <lvgl.h>
-#include <stdbool.h>
 #include <zephyr/kernel.h>
 
 struct zmk_widget_dongle_battery_status {
@@ -16,5 +15,4 @@ struct zmk_widget_dongle_battery_status {
 };
 
 int zmk_widget_dongle_battery_status_init(struct zmk_widget_dongle_battery_status *widget, lv_obj_t *parent);
-void zmk_widget_dongle_battery_status_set_hidden(bool hidden);
 lv_obj_t *zmk_widget_dongle_battery_status_obj(struct zmk_widget_dongle_battery_status *widget);
