@@ -17,7 +17,9 @@ if((NOT CONFIG_ZMK_SPLIT) OR CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
             zephyr_library_sources(widgets/bongo_cat.c)
             zephyr_library_sources(widgets/bongo_cat_images.c)
         endif()
-        if(CONFIG_ZMK_DONGLE_DISPLAY_LAYER)
+        # The compact 128x32 layer-change notice uses layer_status.c even when
+        # the regular persistent layer widget is disabled.
+        if(CONFIG_ZMK_DONGLE_DISPLAY_LAYER OR CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
             zephyr_library_sources(widgets/layer_status.c)
         endif()
         if(CONFIG_ZMK_DONGLE_DISPLAY_MODIFIERS)
