@@ -39,7 +39,9 @@ static struct zmk_widget_wpm_status wpm_status_widget;
 #endif
 
 static lv_obj_t *screen_root;
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
 static bool timeout_overlay_active;
+#endif
 lv_style_t global_style;
 
 void zmk_display_compact_set_modifier_view(bool enabled) {
