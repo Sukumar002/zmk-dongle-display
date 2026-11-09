@@ -301,10 +301,13 @@ ZMK_SUBSCRIPTION(widget_dongle_battery_status, zmk_usb_conn_state_changed);
 int zmk_widget_dongle_battery_status_init(struct zmk_widget_dongle_battery_status *widget, lv_obj_t *parent) {
     /* Compact 128x32 dashboard: fixed coordinates match the original tested
      * L/R battery rows, while USB and BT retain their existing positions. */
-    widget->obj = parent;
+    widget->obj = lv_obj_create(parent);
     lv_obj_set_size(widget->obj, 128, 32);
+    lv_obj_set_pos(widget->obj, 0, 0);
     lv_obj_remove_style_all(widget->obj);
     lv_obj_set_style_bg_opa(widget->obj, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(widget->obj, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(widget->obj, 0, LV_PART_MAIN);
 
     for (int i = 0; i < ZMK_SPLIT_BLE_PERIPHERAL_COUNT + SOURCE_OFFSET; i++) {
         lv_obj_t *image_canvas = lv_canvas_create(widget->obj);
