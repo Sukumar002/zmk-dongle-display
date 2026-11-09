@@ -242,7 +242,7 @@ void zmk_widget_timeout_status_show_keyboard_name(const char *name) {
 
     char uppercase_name[32];
     size_t i = 0;
-    while (name[i] != '\0' && i < sizeof(uppercase_name) - 1) {
+    while (name[i] != '\0' && name[i] != '.' && i < sizeof(uppercase_name) - 1) {
         uppercase_name[i] = (char)toupper((unsigned char)name[i]);
         i++;
     }
