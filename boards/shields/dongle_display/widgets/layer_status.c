@@ -10,8 +10,10 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include "../compact_renderer.h"
 
 static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
+#if !IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
 static bool base_text_enabled;
 static bool overlay_active;
+#endif
 
 struct layer_status_state { uint8_t index; const char *name; };
 
@@ -52,10 +54,20 @@ static void refresh_all(void) {
     SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) set_layer_text(widget, state);
 }
 void zmk_widget_layer_status_set_base_text_enabled(bool enabled) {
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
+    ARG_UNUSED(enabled);
+#else
     base_text_enabled = enabled;
     refresh_all();
+#endif
 }
-void zmk_widget_layer_status_set_overlay_active(bool active) { overlay_active = active; }
+void zmk_widget_layer_status_set_overlay_active(bool active) {
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
+    ARG_UNUSED(active);
+#else
+    overlay_active = active;
+#endif
+}
 void zmk_widget_layer_status_refresh(void) { refresh_all(); }
 
 static void layer_status_update_cb(struct layer_status_state state) {
