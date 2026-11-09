@@ -33,8 +33,9 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #endif
 
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
-#define BATTERY_W 18
-#define BATTERY_H 8
+/* The compact battery artwork is 16x10 and fits exactly at x=112..127. */
+#define BATTERY_W 16
+#define BATTERY_H 10
 #define BUFFER_SIZE LV_CANVAS_BUF_SIZE(BATTERY_W, BATTERY_H, LV_COLOR_FORMAT_GET_BPP(LV_COLOR_FORMAT_L8), LV_DRAW_BUF_STRIDE_ALIGN)
 #else
 #define BUFFER_SIZE LV_CANVAS_BUF_SIZE(7, 8, LV_COLOR_FORMAT_GET_BPP(LV_COLOR_FORMAT_L8), LV_DRAW_BUF_STRIDE_ALIGN)
@@ -99,18 +100,44 @@ static void remember_dongle_battery_present(void) {
 
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
 static void draw_compact_battery(lv_obj_t *canvas, uint8_t level, bool charging) {
+    /*
+     * Port the larger 17x10 battery artwork from the tested 128x32 raw UI.
+     * Its painted bounds are x=0..15; with the canvas at x=112, the terminal
+     * reaches column 127 exactly. The 16px canvas itself fits the 128px
+     * battery widget container, so neither the canvas nor its glyph is clipped.
+     */
     lv_canvas_fill_bg(canvas, lv_color_white(), LV_OPA_COVER);
     const lv_color_t black = lv_color_black();
-    /* Compact 14px-wide case so the glyph can sit farther right. */
-    for (int x = 0; x <= 11; x++) { lv_canvas_set_px(canvas, x, 0, black, LV_OPA_COVER); lv_canvas_set_px(canvas, x, 7, black, LV_OPA_COVER); }
-    for (int y = 1; y <= 6; y++) { lv_canvas_set_px(canvas, 0, y, black, LV_OPA_COVER); lv_canvas_set_px(canvas, 11, y, black, LV_OPA_COVER); }
-    for (int y = 3; y <= 4; y++) for (int x = 12; x <= 13; x++) lv_canvas_set_px(canvas, x, y, black, LV_OPA_COVER);
+
+    /* Battery body: 14px outline, plus the separated two-pixel terminal. */
+    for (int x = 0; x <= 13; x++) {
+        lv_canvas_set_px(canvas, x, 0, black, LV_OPA_COVER);
+        lv_canvas_set_px(canvas, x, 9, black, LV_OPA_COVER);
+    }
+    for (int y = 1; y <= 8; y++) {
+        lv_canvas_set_px(canvas, 0, y, black, LV_OPA_COVER);
+        lv_canvas_set_px(canvas, 13, y, black, LV_OPA_COVER);
+    }
+    for (int y = 3; y <= 6; y++) {
+        lv_canvas_set_px(canvas, 15, y, black, LV_OPA_COVER);
+    }
+
     if (charging) {
-        const uint8_t bolt[][2] = {{7,1},{6,2},{7,2},{5,3},{6,3},{7,3},{6,4},{5,5},{6,5}};
-        for (size_t i = 0; i < ARRAY_SIZE(bolt); i++) lv_canvas_set_px(canvas, bolt[i][0], bolt[i][1], black, LV_OPA_COVER);
+        const uint8_t bolt[][2] = {
+            {8,1}, {7,2}, {8,2}, {6,3}, {7,3}, {8,3},
+            {7,4}, {6,5}, {7,5}, {6,6}, {5,7}
+        };
+        for (size_t i = 0; i < ARRAY_SIZE(bolt); i++) {
+            lv_canvas_set_px(canvas, bolt[i][0], bolt[i][1], black, LV_OPA_COVER);
+        }
     } else {
-        uint8_t steps = (uint8_t)((MIN(level, 100) + 9) / 10);
-        for (int x = 1; x < 1 + steps && x <= 10; x++) for (int y = 2; y <= 5; y++) lv_canvas_set_px(canvas, x, y, black, LV_OPA_COVER);
+        /* Ten horizontal fill steps, preserving actual percentage elsewhere. */
+        const uint8_t steps = (uint8_t)((MIN(level, 100) * 10 + 50) / 100);
+        for (int x = 2; x < 2 + steps; x++) {
+            for (int y = 2; y <= 7; y++) {
+                lv_canvas_set_px(canvas, x, y, black, LV_OPA_COVER);
+            }
+        }
     }
 }
 #else
@@ -399,11 +426,11 @@ int zmk_widget_dongle_battery_status_init(struct zmk_widget_dongle_battery_statu
              */
             const int half = i - SOURCE_OFFSET;
             const int y = half == 0 ? 1 : 13;
-            /* Keep the percentage at x=80 and move the narrower 14px glyph
-             * to x=114; its final painted pixel lands at column 127. */
+            /* Percentage remains at x=80; 16px battery canvas fills
+             * the rightmost 16 columns without overflowing its 128px parent. */
             lv_obj_set_pos(battery_label, 80, y);
-            lv_obj_set_pos(image_canvas, 114, y);
-            lv_obj_set_pos(charge_canvas, 114, y);
+            lv_obj_set_pos(image_canvas, 112, y);
+            lv_obj_set_pos(charge_canvas, 112, y);
         }
         lv_obj_add_flag(image_canvas, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(battery_label, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(charge_canvas, LV_OBJ_FLAG_HIDDEN);
         battery_objects[i] = (struct battery_object){ .symbol=image_canvas, .label=battery_label, .charge_icon=charge_canvas };
