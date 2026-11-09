@@ -329,7 +329,7 @@ void zmk_compact_renderer_set_battery(uint8_t half, uint8_t level,
                                       bool charging, bool present) {
     ARG_UNUSED(charging);
     if (half >= 2) return;
-    battery_valid[half] = present;
+    battery_valid[half] = present && level <= 100;
     battery_level[half] = level;
     render();
 }
