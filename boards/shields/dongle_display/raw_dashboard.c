@@ -306,7 +306,7 @@ static void draw_profile_number(int x, int y, uint8_t profile)
     }
 }
 
-/* Each battery is 17x10, with a substantial six-pixel charge window. */
+/* 17x10 battery glyph: rightmost cap pixel is x+15. */
 static void draw_battery_icon(int x, int y, uint8_t level)
 {
     hline(x, y, 14);
@@ -346,7 +346,9 @@ static void draw_battery_row(int y, char side, uint8_t level)
     /* Four glyphs occupy 23 pixels (5px glyph + 1px advance each).
      * End the final glyph six pixels before the battery outline. */
     draw_text(label, 79, y + 1);
-    draw_battery_icon(108, y, level);
+    /* Place the established 64px battery artwork against the right edge.
+     * At x=112 its rightmost cap pixel is column 127 on the 128px panel. */
+    draw_battery_icon(112, y, level);
 }
 
 /* Exact 14x14 modifier glyphs from the established Hana 128x64
