@@ -324,6 +324,59 @@ static void draw_battery_row(int y, char side, uint8_t level)
     draw_battery_icon(108, y, level);
 }
 
+/* Compact 3x5 lock glyphs in an 8px-high capsule at the bottom-right.
+ * This occupies only the lower strip of the right-hand display region. */
+static void draw_lock_glyph(int x, int y, char letter)
+{
+    static const uint8_t c_rows[5] = { 0x3, 0x4, 0x4, 0x4, 0x3 };
+    static const uint8_t n_rows[5] = { 0x4, 0x6, 0x5, 0x5, 0x5 };
+    static const uint8_t s_rows[5] = { 0x3, 0x4, 0x2, 0x1, 0x6 };
+    const uint8_t *rows = letter == 'C' ? c_rows :
+                          letter == 'N' ? n_rows : s_rows;
+    for (int row = 0; row < 5; row++) {
+        for (int col = 0; col < 3; col++) {
+            if (rows[row] & BIT(2 - col)) pixel(x + col, y + row);
+        }
+    }
+}
+
+static void draw_lock_indicators(void)
+{
+    static const struct { uint8_t mask; char letter; } locks[] = {
+        { HID_INDICATOR_CAPS_LOCK, 'C' },
+        { HID_INDICATOR_NUM_LOCK, 'N' },
+        { HID_INDICATOR_SCROLL_LOCK, 'S' },
+    };
+
+    int count = 0;
+    for (size_t i = 0; i < ARRAY_SIZE(locks); i++) {
+        if (lock_indicators & locks[i].mask) count++;
+    }
+    if (count == 0) return;
+
+    const int gap = 2;
+    const int width = 4 + count * 3 + (count - 1) * gap;
+    const int x = OLED_W - width - 1;
+    const int y = 24;
+
+    /* Rounded 8px-high outline; keep all drawing within the right region. */
+    pixel(x + 1, y);
+    hline(x + 2, y, width - 4);
+    pixel(x + width - 2, y);
+    pixel(x + 1, y + 7);
+    hline(x + 2, y + 7, width - 4);
+    pixel(x + width - 2, y + 7);
+    vline(x, y + 2, 4);
+    vline(x + width - 1, y + 2, 4);
+
+    int glyph_x = x + 2;
+    for (size_t i = 0; i < ARRAY_SIZE(locks); i++) {
+        if (!(lock_indicators & locks[i].mask)) continue;
+        draw_lock_glyph(glyph_x, y + 1, locks[i].letter);
+        glyph_x += 3 + gap;
+    }
+}
+
 static int dashboard_flush(void)
 {
     const struct display_buffer_descriptor desc = {
