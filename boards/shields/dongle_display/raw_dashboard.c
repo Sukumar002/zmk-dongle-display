@@ -178,31 +178,6 @@ static void draw_text(const char *s, int x, int y)
     draw_text_color(s, x, y, true);
 }
 
-/* Double-sized 5x7 text uses 14 of the OLED's 32 vertical pixels. */
-static void draw_large_text(const char *s, int x, int y)
-{
-    while (*s) {
-        unsigned char c = (unsigned char)*s++;
-        if (c >= 'a' && c <= 'z') c = c - 'a' + 'A';
-        if (c == ' ') { x += 12; continue; }
-        const uint8_t *g = NULL;
-        if (c >= '0' && c <= '9') g = font[c - '0'];
-        else if (c >= 32 && c < 128) g = font[c - 32];
-        if (g != NULL) {
-            for (int col = 0; col < 5; col++) {
-                for (int row = 0; row < 7; row++) {
-                    bool on = (g[col] & BIT(row)) != 0;
-                    set_pixel(x + col * 2, y + row * 2, on);
-                    set_pixel(x + col * 2 + 1, y + row * 2, on);
-                    set_pixel(x + col * 2, y + row * 2 + 1, on);
-                    set_pixel(x + col * 2 + 1, y + row * 2 + 1, on);
-                }
-            }
-        }
-        x += 12;
-    }
-}
-
 /* Exact 1-bit artwork copied from widgets/output_status_sym.c in the
  * established Hana 128x64 display. Rows are byte-aligned exactly as LVGL I1. */
 static const uint8_t sym_usb_bits[28] = {
@@ -273,21 +248,6 @@ static void draw_profile_number(int x, int y, uint8_t profile)
         draw_bitmap(x, y, 5, 6, sym_num_bits[profile]);
     } else {
         draw_bitmap(x, y, 5, 5, sym_open_bits);
-    }
-}
-
-/* Each battery is 17x10, with a substantial six-pixel charge window. */
-static void draw_battery_icon(int x, int y, uint8_t level)
-{
-    hline(x, y, 14);
-    hline(x, y + 9, 14);
-    vline(x, y, 10);
-    vline(x + 13, y, 10);
-    vline(x + 15, y + 3, 4);
-    if (level != 0xff) {
-        int fill = (MIN(level, 100) * 10 + 50) / 100;
-        for (int xx = x + 2; xx < x + 2 + fill; xx++)
-            for (int yy = y + 2; yy < y + 8; yy++) pixel(xx, yy);
     }
 }
 
