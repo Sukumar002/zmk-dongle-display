@@ -10,6 +10,7 @@ struct zmk_widget_timeout_status {
     lv_obj_t *obj;
     lv_obj_t *icon;
     lv_obj_t *label;
+    lv_obj_t *banner_bold;
     lv_timer_t *hide_timer;
 };
 
