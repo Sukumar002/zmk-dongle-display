@@ -7,6 +7,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/event_manager.h>
 #include <zmk/keymap.h>
 #include "layer_status.h"
+#include "../compact_renderer.h"
 
 static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
 static bool base_text_enabled;
@@ -28,16 +29,20 @@ static const char *fallback_layer_name(uint8_t index) {
 static void set_layer_text(struct zmk_widget_layer_status *widget,
                            struct layer_status_state state) {
     widget->layer = state.index;
+    const char *text = state.name;
+    if (text == NULL || text[0] == '\0') text = fallback_layer_name(state.index);
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
+    zmk_compact_renderer_set_layer(state.index, text);
+#else
     if (state.index == 0 && !base_text_enabled) {
         lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
         return;
     }
-    const char *text = state.name;
-    if (text == NULL || text[0] == '\0') text = fallback_layer_name(state.index);
     lv_label_set_text(widget->label, text);
     lv_label_set_text(widget->label_bold, text);
     lv_obj_clear_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
     if (!overlay_active) lv_obj_move_foreground(widget->obj);
+#endif
 }
 
 static void refresh_all(void) {
@@ -46,7 +51,6 @@ static void refresh_all(void) {
     struct zmk_widget_layer_status *widget;
     SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) set_layer_text(widget, state);
 }
-
 void zmk_widget_layer_status_set_base_text_enabled(bool enabled) {
     base_text_enabled = enabled;
     refresh_all();
@@ -68,12 +72,18 @@ ZMK_DISPLAY_WIDGET_LISTENER(widget_layer_status, struct layer_status_state,
 ZMK_SUBSCRIPTION(widget_layer_status, zmk_layer_state_changed);
 
 int zmk_widget_layer_status_init(struct zmk_widget_layer_status *widget, lv_obj_t *parent) {
-    widget->obj = lv_obj_create(parent);
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
-    lv_obj_set_size(widget->obj, 128, 32);
+    widget->obj = parent;
+    widget->layer = zmk_keymap_highest_layer_active();
+    sys_slist_append(&widgets, &widget->node);
+    set_layer_text(widget, (struct layer_status_state) {
+        .index = widget->layer, .name = zmk_keymap_layer_name(widget->layer),
+    });
+    widget_layer_status_init();
+    return 0;
 #else
+    widget->obj = lv_obj_create(parent);
     lv_obj_set_size(widget->obj, 50, 26);
-#endif
     lv_obj_set_style_bg_color(widget->obj, lv_color_white(), 0);
     lv_obj_set_style_bg_opa(widget->obj, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(widget->obj, 1, 0);
@@ -82,21 +92,12 @@ int zmk_widget_layer_status_init(struct zmk_widget_layer_status *widget, lv_obj_
     lv_obj_set_style_pad_all(widget->obj, 0, 0);
     widget->label = lv_label_create(widget->obj);
     widget->label_bold = lv_label_create(widget->obj);
-#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
-    lv_obj_set_width(widget->label, 124);
-    lv_obj_set_width(widget->label_bold, 124);
-    lv_obj_set_style_text_align(widget->label, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_style_text_align(widget->label_bold, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_center(widget->label);
-    lv_obj_center(widget->label_bold);
-#else
     lv_obj_set_width(widget->label, 48);
     lv_obj_set_width(widget->label_bold, 48);
     lv_obj_set_style_text_align(widget->label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_align(widget->label_bold, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(widget->label, LV_ALIGN_CENTER, -1, 0);
     lv_obj_align(widget->label_bold, LV_ALIGN_CENTER, 0, 0);
-#endif
     widget->layer = zmk_keymap_highest_layer_active();
     sys_slist_append(&widgets, &widget->node);
     set_layer_text(widget, (struct layer_status_state) {
@@ -104,5 +105,6 @@ int zmk_widget_layer_status_init(struct zmk_widget_layer_status *widget, lv_obj_
     });
     widget_layer_status_init();
     return 0;
+#endif
 }
 lv_obj_t *zmk_widget_layer_status_obj(struct zmk_widget_layer_status *widget) { return widget->obj; }
