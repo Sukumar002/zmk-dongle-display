@@ -6,14 +6,17 @@ if SHIELD_DONGLE_DISPLAY
 config ZMK_DONGLE_DISPLAY_COMPACT_128X32
     bool "Use compact LVGL layout for 128x32 dongle OLEDs"
     default n
+    help
+      Use only the connection indicators and stacked battery widget on the
+      compact 128x32 display. This avoids placing 64px-only widgets on a
+      32px-tall panel.
 
 config ZMK_DONGLE_DISPLAY_STARTUP_BANNER
     bool "Show the configured keyboard name on OLED startup"
     default n
     help
-      Use only the connection indicators and stacked battery widget on the
-      compact 128x32 display. This avoids placing 64px-only widgets on a
-      32px-tall panel.
+      Show the configured keyboard family name as a full-screen banner
+      during startup. Disabled by default to preserve other dongle layouts.
 
 
 choice ZMK_DISPLAY_STATUS_SCREEN
