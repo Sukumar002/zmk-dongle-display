@@ -74,37 +74,6 @@ const lv_img_dsc_t shift_icon = {
   .data = shift_map,
 };
 
-#ifndef LV_ATTRIBUTE_IMG_ALT
-#define LV_ATTRIBUTE_IMG_ALT
-#endif
-
-const LV_ATTRIBUTE_MEM_ALIGN LV_ATTRIBUTE_LARGE_CONST LV_ATTRIBUTE_IMG_ALT uint8_t alt_map[] = {
-  0xff, 0xff, 0xff, 0xff, 	/*Color of index 0*/
-  0x00, 0x00, 0x00, 0xff, 	/*Color of index 1*/
-
-  0x00, 0x00, 
-  0x00, 0x00, 
-  0x00, 0x00, 
-  0x00, 0x00, 
-  0x32, 0xf8, 
-  0x4a, 0x20, 
-  0x4a, 0x20, 
-  0x7a, 0x20, 
-  0x4a, 0x20, 
-  0x4b, 0xa0, 
-  0x00, 0x00, 
-  0x00, 0x00, 
-  0x00, 0x00, 
-  0x00, 0x00, 
-};
-
-const lv_img_dsc_t alt_icon = {
-  .header.cf = LV_COLOR_FORMAT_I1,
-  .header.w = 14,
-  .header.h = 14,
-  .data_size = 36,
-  .data = alt_map,
-};
 
 #ifndef LV_ATTRIBUTE_IMG_WIN
 #define LV_ATTRIBUTE_IMG_WIN
@@ -365,84 +334,8 @@ const lv_img_dsc_t modifier_shift_on = {
 };
 
 
-#ifndef LV_ATTRIBUTE_IMG_MODIFIER_ALT_OFF
-#define LV_ATTRIBUTE_IMG_MODIFIER_ALT_OFF
-#endif
-const LV_ATTRIBUTE_MEM_ALIGN LV_ATTRIBUTE_LARGE_CONST LV_ATTRIBUTE_IMG_MODIFIER_ALT_OFF uint8_t modifier_alt_off_map[] = {
-  0xff 
-  0xff,
-  0xff 
-  0xff,
-  0x00 
-  0x00,
-  0x00 
-  0xff,
-  0xff 
-  0x80,
-  0x80 
-  0x80,
-  0x80 
-  0x80,
-  0xff 
-  0x80,
-  0xfa 
-  0x80,
-  0xde 
-  0x80,
-  0x80 
-  0x80,
-  0x80 
-  0x80,
-  0xff 
-  0x80,
-};
-const lv_img_dsc_t modifier_alt_off = {
-  .header.cf = LV_COLOR_FORMAT_I1,
-  .header.w = 9,
-  .header.h = 9,
-  .data_size = 26,
-  .data = modifier_alt_off_map,
-};
 
 
-#ifndef LV_ATTRIBUTE_IMG_MODIFIER_ALT_ON
-#define LV_ATTRIBUTE_IMG_MODIFIER_ALT_ON
-#endif
-const LV_ATTRIBUTE_MEM_ALIGN LV_ATTRIBUTE_LARGE_CONST LV_ATTRIBUTE_IMG_MODIFIER_ALT_ON uint8_t modifier_alt_on_map[] = {
-  0x00 
-  0x00,
-  0x00 
-  0xff,
-  0xff 
-  0xff,
-  0xff 
-  0xff,
-  0xff 
-  0x80,
-  0x80 
-  0x80,
-  0x80 
-  0x80,
-  0xff 
-  0x80,
-  0xfa 
-  0x80,
-  0xde 
-  0x80,
-  0x80 
-  0x80,
-  0x80 
-  0x80,
-  0xff 
-  0x80,
-};
-const lv_img_dsc_t modifier_alt_on = {
-  .header.cf = LV_COLOR_FORMAT_I1,
-  .header.w = 9,
-  .header.h = 9,
-  .data_size = 26,
-  .data = modifier_alt_on_map,
-};
 
 
 #ifndef LV_ATTRIBUTE_IMG_MODIFIER_WIN_OFF
