@@ -20,3 +20,7 @@ enum hana_base_view_mode {
 
 enum hana_base_view_mode hana_base_view_get_mode(void);
 void hana_base_view_cycle(void);
+
+/* Compact 128x32 dashboard/modifier view state. */
+bool hana_base_view_is_compact_modifiers(void);
+void zmk_dongle_display_set_compact_view(bool modifiers_view);
