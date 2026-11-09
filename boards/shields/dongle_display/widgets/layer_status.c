@@ -129,8 +129,11 @@ int zmk_widget_layer_status_init(struct zmk_widget_layer_status *widget,
                                  lv_obj_t *parent) {
     widget->obj = lv_obj_create(parent);
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
-    /* Right-hand half only: x=64..127 on the 128px display. */
-    lv_obj_set_size(widget->obj, 64, 24);
+    /*
+     * Compact right panel: keep the layer name in a smaller top-right block.
+     * The 16px height leaves a clear vertical gutter above the lock strip.
+     */
+    lv_obj_set_size(widget->obj, 58, 16);
 #else
     lv_obj_set_size(widget->obj, 62, 26);
 #endif
@@ -144,8 +147,8 @@ int zmk_widget_layer_status_init(struct zmk_widget_layer_status *widget,
     widget->label_bold = lv_label_create(widget->obj);
 
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
-    lv_obj_set_width(widget->label, 62);
-    lv_obj_set_width(widget->label_bold, 62);
+    lv_obj_set_width(widget->label, 56);
+    lv_obj_set_width(widget->label_bold, 56);
     lv_label_set_long_mode(widget->label, LV_LABEL_LONG_DOT);
     lv_label_set_long_mode(widget->label_bold, LV_LABEL_LONG_DOT);
 #else
