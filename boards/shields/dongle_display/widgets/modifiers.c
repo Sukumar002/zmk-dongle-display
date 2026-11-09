@@ -71,8 +71,6 @@ LV_IMG_DECLARE(modifier_control_off);
 LV_IMG_DECLARE(modifier_control_on);
 LV_IMG_DECLARE(modifier_shift_off);
 LV_IMG_DECLARE(modifier_shift_on);
-LV_IMG_DECLARE(modifier_alt_off);
-LV_IMG_DECLARE(modifier_alt_on);
 LV_IMG_DECLARE(modifier_win_off);
 LV_IMG_DECLARE(modifier_win_on);
 LV_IMG_DECLARE(modifier_cmd_off);
@@ -127,8 +125,8 @@ static void configure_symbol_family(bool windows_mode) {
         modifier_slots[1].active_icon = &modifier_win_on;
 
         modifier_slots[2].modifier = MOD_LALT | MOD_RALT;
-        modifier_slots[2].inactive_icon = &modifier_alt_off;
-        modifier_slots[2].active_icon = &modifier_alt_on;
+        modifier_slots[2].inactive_icon = &modifier_opt_off;
+        modifier_slots[2].active_icon = &modifier_opt_on;
     } else {
         modifier_slots[0].modifier = MOD_LCTL | MOD_RCTL;
         modifier_slots[0].inactive_icon = &modifier_control_off;
