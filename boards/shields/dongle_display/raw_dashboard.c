@@ -160,6 +160,19 @@ static void outline_rect(int x, int y, int width, int height)
     vline(x + width - 1, y, height);
 }
 
+static void outline_capsule(int x, int y, int width, int height)
+{
+    /* Small rounded ends keep the 10px lock badge readable and compact. */
+    hline(x + 2, y, width - 4);
+    hline(x + 2, y + height - 1, width - 4);
+    vline(x, y + 2, height - 4);
+    vline(x + width - 1, y + 2, height - 4);
+    pixel(x + 1, y + 1);
+    pixel(x + width - 2, y + 1);
+    pixel(x + 1, y + height - 2);
+    pixel(x + width - 2, y + height - 2);
+}
+
 static void draw_text_color(const char *s, int x, int y, bool foreground)
 {
     while (*s) {
@@ -345,7 +358,7 @@ static void draw_lock_indicators(void)
     const int x = OLED_W - box_width - 1;
     const int y = OLED_H - box_height;
 
-    outline_rect(x, y, box_width, box_height);
+    outline_capsule(x, y, box_width, box_height);
     draw_text(text, x + 3, y + 1);
 }
 
