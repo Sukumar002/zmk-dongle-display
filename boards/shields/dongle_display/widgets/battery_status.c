@@ -400,9 +400,12 @@ int zmk_widget_dongle_battery_status_init(struct zmk_widget_dongle_battery_statu
              */
             const int half = i - SOURCE_OFFSET;
             const int y = half == 0 ? 1 : 13;
-            lv_obj_set_pos(battery_label, 72, y);
-            lv_obj_set_pos(image_canvas, 110, y);
-            lv_obj_set_pos(charge_canvas, 110, y);
+            /* Right-align the text + glyph block; the glyph's final painted
+             * pixel is x=16 of its 18px canvas, so x=111 places it at screen
+             * column 127 (the final visible OLED column). */
+            lv_obj_set_pos(battery_label, 80, y);
+            lv_obj_set_pos(image_canvas, 111, y);
+            lv_obj_set_pos(charge_canvas, 111, y);
         }
         lv_obj_add_flag(image_canvas, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(battery_label, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(charge_canvas, LV_OBJ_FLAG_HIDDEN);
         battery_objects[i] = (struct battery_object){ .symbol=image_canvas, .label=battery_label, .charge_icon=charge_canvas };
