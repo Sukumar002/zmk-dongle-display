@@ -3,14 +3,6 @@
 
 if SHIELD_DONGLE_DISPLAY
 
-config DONGLE_DISPLAY_RAW_DASHBOARD
-    bool "Use standalone framebuffer renderer for compact OLEDs"
-    default y if !ZMK_DISPLAY
-    help
-      Use the direct Zephyr display API renderer instead of the LVGL status
-      screen. Intended for compact 128x32 dongle OLED builds.
-
-
 choice ZMK_DISPLAY_STATUS_SCREEN
     default ZMK_DISPLAY_STATUS_SCREEN_CUSTOM
 endchoice
@@ -19,9 +11,9 @@ config ZMK_DISPLAY_STATUS_SCREEN_CUSTOM
     select LV_USE_LABEL
     select LV_USE_IMAGE
     select LV_USE_CANVAS
-    select LV_USE_ANIMIMG 
+    select LV_USE_ANIMIMG
     select LV_USE_ANIMATION
-    select LV_USE_LINE 
+    select LV_USE_LINE
     select LV_FONT_UNSCII_8
     select ZMK_WPM
     imply ZMK_HID_INDICATORS
