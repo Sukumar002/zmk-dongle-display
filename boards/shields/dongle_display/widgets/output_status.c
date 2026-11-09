@@ -131,7 +131,7 @@ static void set_status_symbol(struct zmk_widget_output_status *widget, struct ou
     }
     const bool usb_active = transport == ZMK_TRANSPORT_USB;
     zmk_compact_renderer_set_output(usb_active,
-                                    state.usb_is_hid_ready && usb_active,
+                                    state.usb_is_hid_ready,
                                     state.active_profile_connected,
                                     state.active_profile_bonded,
                                     state.active_profile_index);
