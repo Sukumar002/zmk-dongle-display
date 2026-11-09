@@ -3,13 +3,6 @@
 
 if SHIELD_DONGLE_DISPLAY
 
-config DONGLE_DISPLAY_RAW_DASHBOARD
-    bool "Use standalone framebuffer renderer for compact OLEDs"
-    default y if !ZMK_DISPLAY
-    help
-      Use the direct Zephyr display API renderer instead of the LVGL status
-      screen. Intended for compact 128x32 dongle OLED builds.
-
 config ZMK_DONGLE_DISPLAY_COMPACT_128X32
     bool "Use compact LVGL layout for 128x32 dongle OLEDs"
     default n
