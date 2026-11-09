@@ -101,15 +101,16 @@ static void remember_dongle_battery_present(void) {
 static void draw_compact_battery(lv_obj_t *canvas, uint8_t level, bool charging) {
     lv_canvas_fill_bg(canvas, lv_color_white(), LV_OPA_COVER);
     const lv_color_t black = lv_color_black();
-    for (int x = 0; x <= 13; x++) { lv_canvas_set_px(canvas, x, 0, black, LV_OPA_COVER); lv_canvas_set_px(canvas, x, 7, black, LV_OPA_COVER); }
-    for (int y = 1; y <= 6; y++) { lv_canvas_set_px(canvas, 0, y, black, LV_OPA_COVER); lv_canvas_set_px(canvas, 13, y, black, LV_OPA_COVER); }
-    for (int y = 3; y <= 4; y++) for (int x = 14; x <= 16; x++) lv_canvas_set_px(canvas, x, y, black, LV_OPA_COVER);
+    /* Compact 14px-wide case so the glyph can sit farther right. */
+    for (int x = 0; x <= 11; x++) { lv_canvas_set_px(canvas, x, 0, black, LV_OPA_COVER); lv_canvas_set_px(canvas, x, 7, black, LV_OPA_COVER); }
+    for (int y = 1; y <= 6; y++) { lv_canvas_set_px(canvas, 0, y, black, LV_OPA_COVER); lv_canvas_set_px(canvas, 11, y, black, LV_OPA_COVER); }
+    for (int y = 3; y <= 4; y++) for (int x = 12; x <= 13; x++) lv_canvas_set_px(canvas, x, y, black, LV_OPA_COVER);
     if (charging) {
         const uint8_t bolt[][2] = {{7,1},{6,2},{7,2},{5,3},{6,3},{7,3},{6,4},{5,5},{6,5}};
         for (size_t i = 0; i < ARRAY_SIZE(bolt); i++) lv_canvas_set_px(canvas, bolt[i][0], bolt[i][1], black, LV_OPA_COVER);
     } else {
         uint8_t steps = (uint8_t)((MIN(level, 100) + 9) / 10);
-        for (int x = 2; x < 2 + steps && x <= 11; x++) for (int y = 2; y <= 5; y++) lv_canvas_set_px(canvas, x, y, black, LV_OPA_COVER);
+        for (int x = 1; x < 1 + steps && x <= 10; x++) for (int y = 2; y <= 5; y++) lv_canvas_set_px(canvas, x, y, black, LV_OPA_COVER);
     }
 }
 #else
@@ -393,19 +394,16 @@ int zmk_widget_dongle_battery_status_init(struct zmk_widget_dongle_battery_statu
         } else {
             /*
              * Keep the full four-character percentage label clear of the
-             * battery glyph. The previous x=79 / x=108 placement let the
-             * glyph cover the trailing digit (e.g. 40 appeared as 4).
-             * Align the glyph to the extreme right edge and move the rows
-             * closer together to leave the bottom CNS badge unobstructed.
+             * battery glyph. The percentage retains its original x=80 position. The narrower
+             * glyph starts farther right so the full percentage remains clear.
              */
             const int half = i - SOURCE_OFFSET;
             const int y = half == 0 ? 1 : 13;
-            /* Right-align the text + glyph block; the glyph's final painted
-             * pixel is x=16 of its 18px canvas, so x=111 places it at screen
-             * column 127 (the final visible OLED column). */
-            lv_obj_set_pos(battery_label, 70, y);
-            lv_obj_set_pos(image_canvas, 111, y);
-            lv_obj_set_pos(charge_canvas, 111, y);
+            /* Keep the percentage at x=80 and move the narrower 14px glyph
+             * to x=114; its final painted pixel lands at column 127. */
+            lv_obj_set_pos(battery_label, 80, y);
+            lv_obj_set_pos(image_canvas, 114, y);
+            lv_obj_set_pos(charge_canvas, 114, y);
         }
         lv_obj_add_flag(image_canvas, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(battery_label, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(charge_canvas, LV_OBJ_FLAG_HIDDEN);
         battery_objects[i] = (struct battery_object){ .symbol=image_canvas, .label=battery_label, .charge_icon=charge_canvas };
