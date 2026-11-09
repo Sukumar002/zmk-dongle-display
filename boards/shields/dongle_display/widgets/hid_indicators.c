@@ -18,6 +18,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zephyr/devicetree.h>
 
 #include "hid_indicators.h"
+#include "../compact_renderer.h"
 
 #define LED_NLCK 0x01
 #define LED_CLCK 0x02
@@ -54,6 +55,10 @@ struct hid_indicators_state {
 static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
 
 static void set_hid_indicators(lv_obj_t *label, struct hid_indicators_state state) {
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
+    zmk_compact_renderer_set_locks(state.hid_indicators, state.windows_mode);
+    ARG_UNUSED(label);
+#else
     char text[7] = {};
     bool lock = false;
 
@@ -78,6 +83,7 @@ static void set_hid_indicators(lv_obj_t *label, struct hid_indicators_state stat
     }
 
     lv_label_set_text(label, text);
+#endif
 }
 
 void hid_indicators_update_cb(struct hid_indicators_state state) {
@@ -103,8 +109,11 @@ ZMK_DISPLAY_WIDGET_LISTENER(widget_hid_indicators, struct hid_indicators_state,
 ZMK_SUBSCRIPTION(widget_hid_indicators, zmk_hid_indicators_changed);
 
 int zmk_widget_hid_indicators_init(struct zmk_widget_hid_indicators *widget, lv_obj_t *parent) {
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
+    widget->obj = parent;
+#else
     widget->obj = lv_label_create(parent);
-
+#endif
     sys_slist_append(&widgets, &widget->node);
 
     widget_hid_indicators_init();
