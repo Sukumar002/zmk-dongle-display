@@ -14,6 +14,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/keymap.h>
 
 #include "layer_status.h"
+#include "battery_status.h"
 #include <hana_base_view.h>
 
 static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
@@ -38,6 +39,11 @@ static const char *fallback_layer_name(uint8_t index) {
 static void set_layer_text(struct zmk_widget_layer_status *widget,
                            struct layer_status_state state) {
     widget->layer = state.index;
+
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
+    const bool base_layer = hana_base_view_is_base_layer(state.index);
+    zmk_widget_dongle_battery_status_set_hidden(!base_layer);
+#endif
 
     if (hana_base_view_is_base_layer(state.index) && !base_text_enabled) {
         lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
@@ -104,7 +110,8 @@ int zmk_widget_layer_status_init(struct zmk_widget_layer_status *widget,
                                  lv_obj_t *parent) {
     widget->obj = lv_obj_create(parent);
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
-    lv_obj_set_size(widget->obj, 78, 24);
+    /* Right-hand half only: x=64..127 on the 128px display. */
+    lv_obj_set_size(widget->obj, 64, 24);
 #else
     lv_obj_set_size(widget->obj, 62, 26);
 #endif
@@ -118,8 +125,10 @@ int zmk_widget_layer_status_init(struct zmk_widget_layer_status *widget,
     widget->label_bold = lv_label_create(widget->obj);
 
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
-    lv_obj_set_width(widget->label, 76);
-    lv_obj_set_width(widget->label_bold, 76);
+    lv_obj_set_width(widget->label, 62);
+    lv_obj_set_width(widget->label_bold, 62);
+    lv_label_set_long_mode(widget->label, LV_LABEL_LONG_DOT);
+    lv_label_set_long_mode(widget->label_bold, LV_LABEL_LONG_DOT);
 #else
     lv_obj_set_width(widget->label, 60);
     lv_obj_set_width(widget->label_bold, 60);
