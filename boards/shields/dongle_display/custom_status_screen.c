@@ -71,6 +71,11 @@ lv_obj_t *zmk_display_status_screen() {
     zmk_widget_timeout_status_init(&timeout_status_widget, screen);
     lv_obj_align(zmk_widget_timeout_status_obj(&timeout_status_widget), LV_ALIGN_CENTER, 0, 0);
 
+#if IS_ENABLED(CONFIG_ZMK_UNIVERSAL_DONGLE_CENTRAL_IDENTITY)
+    /* Also initialize board-name startup feedback on the compact 128x32 path. */
+    zmk_universal_oled_status_init(screen, zmk_widget_timeout_status_obj(&timeout_status_widget));
+#endif
+
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
     /*
      * Compact 128x32 layout: preserve the connection indicators on the left
@@ -96,10 +101,6 @@ lv_obj_t *zmk_display_status_screen() {
                  LV_ALIGN_TOP_RIGHT, 0, 0);
     return screen;
 #else
-#if IS_ENABLED(CONFIG_ZMK_UNIVERSAL_DONGLE_CENTRAL_IDENTITY)
-    zmk_universal_oled_status_init(screen, zmk_widget_timeout_status_obj(&timeout_status_widget));
-#endif
-
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_WPM)
     zmk_widget_wpm_status_init(&wpm_status_widget, screen);
 #endif
