@@ -14,7 +14,6 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/keymap.h>
 
 #include "layer_status.h"
-#include "battery_status.h"
 #include <string.h>
 
 static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
@@ -25,11 +24,6 @@ struct layer_status_state {
     uint8_t index;
     const char *name;
 };
-
-static bool is_compact_display(void) {
-    lv_display_t *display = lv_display_get_default();
-    return display != NULL && lv_display_get_vertical_resolution(display) <= 32;
-}
 
 static bool layer_is_base(struct layer_status_state state) {
     if (state.name != NULL && state.name[0] != '\0') {
@@ -57,19 +51,7 @@ static void set_layer_text(struct zmk_widget_layer_status *widget,
                            struct layer_status_state state) {
     widget->layer = state.index;
 
-    const bool compact_display = is_compact_display();
-    const bool base_layer = layer_is_base(state);
-
-    if (compact_display) {
-        /* On 128x32, batteries and layer name share the upper status zone. */
-#if IS_ENABLED(CONFIG_ZMK_BATTERY)
-        zmk_widget_dongle_battery_status_set_hidden(!base_layer);
-#endif
-        if (base_layer) {
-            lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
-            return;
-        }
-    } else if (base_layer && !base_text_enabled) {
+    if (layer_is_base(state) && !base_text_enabled) {
         /* Preserve the existing 128x64 BASE -> WPM -> Bongo Cat cycle. */
         lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
         return;
@@ -129,13 +111,7 @@ ZMK_SUBSCRIPTION(widget_layer_status, zmk_layer_state_changed);
 int zmk_widget_layer_status_init(struct zmk_widget_layer_status *widget,
                                  lv_obj_t *parent) {
     widget->obj = lv_obj_create(parent);
-    if (is_compact_display()) {
-        /* Match the 78px battery column; centre a 14px label in its 24px zone. */
-        lv_obj_set_size(widget->obj, 78, 14);
-        lv_obj_align(widget->obj, LV_ALIGN_TOP_RIGHT, 0, 5);
-    } else {
-        lv_obj_set_size(widget->obj, 62, 26);
-    }
+    lv_obj_set_size(widget->obj, 62, 26);
     lv_obj_set_style_bg_opa(widget->obj, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(widget->obj, 1, 0);
     lv_obj_set_style_border_color(widget->obj, lv_color_black(), 0);
