@@ -27,13 +27,11 @@
 #include <zmk/events/keycode_state_changed.h>
 #include <zmk/events/position_state_changed.h>
 #include <zmk/events/layer_state_changed.h>
-#include <zmk/hid.h>
 #include <zmk/hid_indicators.h>
 #include <zmk/events/hid_indicators_changed.h>
 #include <zmk/events/runtime_timeout_changed.h>
 #include <dt-bindings/zmk/hid_indicators.h>
 #include <zmk/keymap.h>
-#include <dt-bindings/zmk/modifiers.h>
 
 LOG_MODULE_REGISTER(hana_128x32_dashboard, LOG_LEVEL_INF);
 
@@ -324,101 +322,6 @@ static void draw_battery_row(int y, char side, uint8_t level)
      * End the final glyph six pixels before the battery outline. */
     draw_text(label, 79, y + 1);
     draw_battery_icon(108, y, level);
-}
-
-/* Exact 14x14 modifier glyphs from the established Hana 128x64
- * modifiers_sym.c assets. Each row is two bytes, MSB first. */
-static const uint8_t modifier_control_bits[28] = {
-    0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x07, 0x80, 0x0c, 0xc0, 0x18, 0x60, 0x30, 0x30,
-    0x20, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-};
-
-static const uint8_t modifier_shift_bits[28] = {
-    0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x07, 0x80, 0x0c, 0xc0, 0x18, 0x60, 0x30, 0x30,
-    0x78, 0x78, 0x08, 0x40, 0x08, 0x40, 0x08, 0x40, 0x0f, 0xc0, 0x00, 0x00, 0x00, 0x00
-};
-
-static const uint8_t modifier_opt_bits[28] = {
-    0x00, 0x00, 0x00, 0x00, 0x3c, 0xe0, 0x3c, 0xe0, 0x06, 0x00, 0x06, 0x00, 0x06, 0x00,
-    0x03, 0x00, 0x03, 0x00, 0x03, 0x00, 0x01, 0xe0, 0x01, 0xe0, 0x00, 0x00, 0x00, 0x00
-};
-
-static const uint8_t modifier_cmd_bits[28] = {
-    0x00, 0x00, 0x00, 0x00, 0x18, 0x60, 0x24, 0x90, 0x24, 0x90, 0x1f, 0xe0, 0x04, 0x80,
-    0x04, 0x80, 0x1f, 0xe0, 0x24, 0x90, 0x24, 0x90, 0x18, 0x60, 0x00, 0x00, 0x00, 0x00
-};
-
-static const uint8_t modifier_alt_bits[28] = {
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x32, 0xf8, 0x4a, 0x20, 0x4a, 0x20,
-    0x7a, 0x20, 0x4a, 0x20, 0x4b, 0xa0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-};
-
-static const uint8_t modifier_win_bits[28] = {
-    0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x0b, 0xf0, 0x3b, 0xf0, 0x3b, 0xf0, 0x3b, 0xf0,
-    0x00, 0x00, 0x3b, 0xf0, 0x3b, 0xf0, 0x3b, 0xf0, 0x03, 0xf0, 0x00, 0x30, 0x00, 0x00
-};
-
-static void draw_modifier_bitmap(int x, int y, const uint8_t *bits, bool inverted)
-{
-    for (int row = 0; row < 14; row++) {
-        for (int col = 0; col < 14; col++) {
-            const bool set = (bits[row * 2 + col / 8] & (0x80u >> (col & 7))) != 0;
-            set_pixel(x + col, y + row, inverted ? !set : set);
-        }
-    }
-}
-
-/* Compact 3x5 lock glyphs in an 8px-high capsule at the bottom-right.
- * This occupies only the lower strip of the right-hand display region. */
-static void draw_lock_glyph(int x, int y, char letter)
-{
-    static const uint8_t c_rows[5] = { 0x3, 0x4, 0x4, 0x4, 0x3 };
-    static const uint8_t n_rows[5] = { 0x4, 0x6, 0x5, 0x5, 0x5 };
-    static const uint8_t s_rows[5] = { 0x3, 0x4, 0x2, 0x1, 0x6 };
-    const uint8_t *rows = letter == 'C' ? c_rows :
-                          letter == 'N' ? n_rows : s_rows;
-    for (int row = 0; row < 5; row++) {
-        for (int col = 0; col < 3; col++) {
-            if (rows[row] & BIT(2 - col)) pixel(x + col, y + row);
-        }
-    }
-}
-
-static void draw_lock_indicators(void)
-{
-    static const struct { uint8_t mask; char letter; } locks[] = {
-        { HID_INDICATOR_CAPS_LOCK, 'C' },
-        { HID_INDICATOR_NUM_LOCK, 'N' },
-        { HID_INDICATOR_SCROLL_LOCK, 'S' },
-    };
-
-    int count = 0;
-    for (size_t i = 0; i < ARRAY_SIZE(locks); i++) {
-        if (lock_indicators & locks[i].mask) count++;
-    }
-    if (count == 0) return;
-
-    const int gap = 2;
-    const int width = 4 + count * 3 + (count - 1) * gap;
-    const int x = OLED_W - width - 1;
-    const int y = 24;
-
-    /* Rounded 8px-high outline; keep all drawing within the right region. */
-    pixel(x + 1, y);
-    hline(x + 2, y, width - 4);
-    pixel(x + width - 2, y);
-    pixel(x + 1, y + 7);
-    hline(x + 2, y + 7, width - 4);
-    pixel(x + width - 2, y + 7);
-    vline(x, y + 2, 4);
-    vline(x + width - 1, y + 2, 4);
-
-    int glyph_x = x + 2;
-    for (size_t i = 0; i < ARRAY_SIZE(locks); i++) {
-        if (!(lock_indicators & locks[i].mask)) continue;
-        draw_lock_glyph(glyph_x, y + 1, locks[i].letter);
-        glyph_x += 3 + gap;
-    }
 }
 
 static int dashboard_flush(void)
