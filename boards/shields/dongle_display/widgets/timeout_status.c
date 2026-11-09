@@ -129,7 +129,9 @@ static void timeout_status_update_cb(struct timeout_state state) {
 
     /* Runtime timeout feedback keeps its icon; board-name feedback is text-only. */
     lv_obj_clear_flag(active_widget->icon, LV_OBJ_FLAG_HIDDEN);
+#if !IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
     lv_obj_align_to(active_widget->label, active_widget->icon, LV_ALIGN_OUT_RIGHT_MID, 4, 0);
+#endif
     if (state.kind == ZMK_RUNTIME_TIMEOUT_DISPLAY) {
         draw_usb_icon(active_widget->icon);
     } else {
@@ -158,14 +160,30 @@ ZMK_SUBSCRIPTION(widget_timeout_status, zmk_runtime_timeout_changed);
 
 int zmk_widget_timeout_status_init(struct zmk_widget_timeout_status *widget, lv_obj_t *parent) {
     widget->obj = lv_obj_create(parent);
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
+    /* Full-panel timeout overlay; flex keeps icon and value centred together. */
+    lv_obj_set_size(widget->obj, 128, 32);
+    lv_obj_set_style_bg_color(widget->obj, lv_color_white(), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(widget->obj, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(widget->obj, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(widget->obj, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(widget->obj, 0, LV_PART_MAIN);
+    lv_obj_set_flex_flow(widget->obj, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(widget->obj, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+#else
     lv_obj_set_size(widget->obj, 112, 14);
+#endif
 
     widget->icon = lv_canvas_create(widget->obj);
     lv_canvas_set_buffer(widget->icon, icon_buf, ICON_W, ICON_H, LV_COLOR_FORMAT_L8);
+#if !IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
     lv_obj_align(widget->icon, LV_ALIGN_LEFT_MID, 0, 0);
+#endif
 
     widget->label = lv_label_create(widget->obj);
+#if !IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
     lv_obj_align_to(widget->label, widget->icon, LV_ALIGN_OUT_RIGHT_MID, 4, 0);
+#endif
 
     widget->hide_timer = lv_timer_create(hide_timer_cb, 2500, widget);
     lv_timer_pause(widget->hide_timer);
@@ -197,7 +215,9 @@ void zmk_widget_timeout_status_show_keyboard_name(const char *name) {
     /* The board switch banner is just the uppercase name; no keyboard glyph. */
     lv_obj_add_flag(active_widget->icon, LV_OBJ_FLAG_HIDDEN);
     lv_label_set_text(active_widget->label, uppercase_name);
+#if !IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
     lv_obj_align(active_widget->label, LV_ALIGN_LEFT_MID, 0, 0);
+#endif
     /* Inherit the screen's compact unscii_8 font to prevent long names clipping. */
     lv_obj_clear_flag(active_widget->obj, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(active_widget->obj);
