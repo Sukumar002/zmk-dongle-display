@@ -403,7 +403,7 @@ int zmk_widget_dongle_battery_status_init(struct zmk_widget_dongle_battery_statu
             /* Right-align the text + glyph block; the glyph's final painted
              * pixel is x=16 of its 18px canvas, so x=111 places it at screen
              * column 127 (the final visible OLED column). */
-            lv_obj_set_pos(battery_label, 80, y);
+            lv_obj_set_pos(battery_label, 70, y);
             lv_obj_set_pos(image_canvas, 111, y);
             lv_obj_set_pos(charge_canvas, 111, y);
         }
