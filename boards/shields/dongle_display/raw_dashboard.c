@@ -33,7 +33,6 @@
 #include <zmk/events/runtime_timeout_changed.h>
 #include <dt-bindings/zmk/hid_indicators.h>
 #include <zmk/keymap.h>
-#include <dt-bindings/zmk/modifiers.h>
 
 LOG_MODULE_REGISTER(hana_128x32_dashboard, LOG_LEVEL_INF);
 
@@ -50,10 +49,9 @@ static uint8_t bt_profile;
 static enum zmk_transport active_transport = ZMK_TRANSPORT_NONE;
 static zmk_hid_indicators_t lock_indicators;
 
-/* Base view 0 is the original dashboard; 1 is the modifier family. */
 static bool layout_windows_mode;
 static bool layout_flash_active;
-static uint8_t active_layer;
+static uint8_t active_layer = UINT8_MAX;
 static bool active_layer_is_base = true;
 static char active_layer_name[64] = "BASE";
 static struct k_work_delayable layout_probe_work;
@@ -114,7 +112,6 @@ void hana_base_view_cycle(void)
 }
 
 /* 5x7 column font. Bit zero is the top row. */
-/* 5x7 column font. Bit zero is the top row. */
 static const uint8_t font[][5] = {
  [0]={0x3e,0x51,0x49,0x45,0x3e}, [1]={0x00,0x42,0x7f,0x40,0x00},
  [2]={0x42,0x61,0x51,0x49,0x46}, [3]={0x21,0x41,0x45,0x4b,0x31},
@@ -135,7 +132,9 @@ static const uint8_t font[][5] = {
  ['W'-32]={0x3f,0x40,0x38,0x40,0x3f}, ['X'-32]={0x63,0x14,0x08,0x14,0x63},
  ['Y'-32]={0x07,0x08,0x70,0x08,0x07}, ['Z'-32]={0x61,0x51,0x49,0x45,0x43},
  ['%'-32]={0x63,0x13,0x08,0x64,0x63}, ['-'-32]={0x08,0x08,0x08,0x08,0x08},
-};static void set_pixel(int x, int y, bool on)
+};
+
+static void set_pixel(int x, int y, bool on)
 {
     if (x < 0 || x >= OLED_W || y < 0 || y >= OLED_H) return;
     uint8_t *byte = &framebuffer[(y / 8) * OLED_W + x];
@@ -350,7 +349,7 @@ static void draw_lock_indicators(void)
     draw_text(text, x + 3, y + 1);
 }
 
-static int dashboard_flush(void)static int dashboard_flush(void)
+static int dashboard_flush(void)
 {
     const struct display_buffer_descriptor desc = {
         .buf_size = sizeof(framebuffer), .width = OLED_W,
@@ -375,7 +374,7 @@ static void draw_layer_panel(void)
     draw_text(label, text_x, panel_y + 3);
 }
 
-static void draw_timeout_feedback(void)static void draw_timeout_feedback(void)
+static void draw_timeout_feedback(void)
 {
     const char *title = timeout_feedback_kind == ZMK_RUNTIME_TIMEOUT_DISPLAY
                             ? "DISPLAY" : "HALF SLEEP";
@@ -392,36 +391,6 @@ static void draw_timeout_feedback(void)static void draw_timeout_feedback(void)
     const int value_width = (int)strlen(value) * 12;
     draw_large_text(title, (OLED_W - title_width) / 2, 1);
     draw_large_text(value, (OLED_W - value_width) / 2, 17);
-}
-
-static void draw_modifier_family(void)
-{
-    const uint8_t masks[4] = {
-        MOD_LCTL | MOD_RCTL,
-        layout_windows_mode ? (MOD_LGUI | MOD_RGUI) : (MOD_LALT | MOD_RALT),
-        layout_windows_mode ? (MOD_LALT | MOD_RALT) : (MOD_LGUI | MOD_RGUI),
-        MOD_LSFT | MOD_RSFT,
-    };
-    const uint8_t *const mac_icons[4] = {
-        modifier_control_bits, modifier_opt_bits, modifier_cmd_bits, modifier_shift_bits,
-    };
-    const uint8_t *const win_icons[4] = {
-        modifier_control_bits, modifier_win_bits, modifier_alt_bits, modifier_shift_bits,
-    };
-    const uint8_t *const *icons = layout_windows_mode ? win_icons : mac_icons;
-    const uint8_t active = zmk_hid_get_explicit_mods();
-
-    /* Four 32px slots, each holding the original 14x14 Hana glyph. */
-    for (int i = 0; i < 4; i++) {
-        const int x = i * 32 + 9;
-        const bool pressed = (active & masks[i]) != 0;
-        draw_modifier_bitmap(x, 8, icons[i], pressed);
-        if (pressed) {
-            /* A short underline reinforces the inverted icon state. */
-            hline(x, 25, 14);
-            hline(x, 26, 14);
-        }
-    }
 }
 
 static int dashboard_render(void)
@@ -469,7 +438,7 @@ static int dashboard_render(void)
     return dashboard_flush();
 }
 
-static void timeout_feedback_timeout_handler(struct k_work *work)static void timeout_feedback_timeout_handler(struct k_work *work)
+static void timeout_feedback_timeout_handler(struct k_work *work)
 {
     ARG_UNUSED(work);
     timeout_feedback_active = false;
@@ -525,7 +494,7 @@ static void refresh_layer_state(void)
     (void)dashboard_render();
 }
 
-static void refresh_output_state(void)static void refresh_output_state(void)
+static void refresh_output_state(void)
 {
     struct zmk_endpoint_instance endpoint = zmk_endpoint_get_selected();
     active_transport = endpoint.transport;
