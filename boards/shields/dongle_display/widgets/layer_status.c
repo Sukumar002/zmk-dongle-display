@@ -170,7 +170,13 @@ static void compact_layer_notice_update(struct compact_layer_notice_state state)
      * overlay immediately when the last momentary layer is released so the
      * dashboard or modifier-family view remains visible without a BASE flash.
      */
-    if (hana_base_view_is_base_layer(state.index)) {
+    /*
+     * Hana's compact dongle keymap has exactly one base layer at index 0.
+     * The shared base-layer-count helper also treats index 1 as a base layer
+     * on multi-base layouts, but on Hana index 1 is the Num layer. Using that
+     * helper here silently suppressed the Num notification.
+     */
+    if (state.index == 0) {
         lv_obj_add_flag(compact_layer_notice, LV_OBJ_FLAG_HIDDEN);
         if (compact_layer_timer != NULL) {
             lv_timer_pause(compact_layer_timer);
