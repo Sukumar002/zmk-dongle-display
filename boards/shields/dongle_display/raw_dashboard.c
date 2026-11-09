@@ -11,7 +11,6 @@
 #include <zephyr/init.h>
 #include <zephyr/kernel.h>
 #include <zephyr/sys/util.h>
-#include <zephyr/settings/settings.h>
 #include <zephyr/logging/log.h>
 #include <string.h>
 
@@ -51,14 +50,11 @@ static uint8_t bt_profile;
 static enum zmk_transport active_transport = ZMK_TRANSPORT_NONE;
 static zmk_hid_indicators_t lock_indicators;
 
-/* Base view 0 is the original dashboard; 1 is the modifier family. */
-static uint8_t base_view_mode;
 static bool layout_windows_mode;
 static bool layout_flash_active;
-static uint8_t active_layer;
+static uint8_t active_layer = UINT8_MAX;
+static bool active_layer_is_base = true;
 static char active_layer_name[64] = "BASE";
-static uint16_t layer_scroll_px;
-static struct k_work_delayable layer_scroll_work;
 static struct k_work_delayable layout_probe_work;
 static struct k_work_delayable layout_flash_work;
 static bool timeout_feedback_active;
@@ -109,30 +105,11 @@ void zmk_raw_display_toggle_manual_power(void)
 }
 
 
-/* The existing &base_view_tog behavior calls this entry point. */
+/* The 32px BASE screen is intentionally fixed: batteries stay visible. */
 void hana_base_view_cycle(void)
 {
-    base_view_mode = (base_view_mode + 1) % 2;
-#if IS_ENABLED(CONFIG_SETTINGS)
-    (void)settings_save_one("hana_base_view_32/modifier_view",
-                            &base_view_mode, sizeof(base_view_mode));
-#endif
     (void)dashboard_render();
 }
-
-#if IS_ENABLED(CONFIG_SETTINGS)
-static int hana_raw_base_view_settings_set(const char *name, size_t len,
-                                           settings_read_cb read_cb, void *cb_arg)
-{
-    if (strcmp(name, "modifier_view") != 0 || len != sizeof(base_view_mode)) return -ENOENT;
-    int rc = read_cb(cb_arg, &base_view_mode, sizeof(base_view_mode));
-    if (rc < 0) return rc;
-    if (base_view_mode > 1) base_view_mode = 0;
-    return 0;
-}
-SETTINGS_STATIC_HANDLER_DEFINE(hana_base_view_32, "hana_base_view_32", NULL,
-                               hana_raw_base_view_settings_set, NULL, NULL);
-#endif
 
 /* 5x7 column font. Bit zero is the top row. */
 static const uint8_t font[][5] = {
@@ -391,37 +368,56 @@ static void draw_modifier_bitmap(int x, int y, const uint8_t *bits, bool inverte
     }
 }
 
-/* Show only active host lock states. The complete group is centered in the
- * 54px dashboard gap; each active letter gets its own 12x12 square. */
+/* Compact 3x5 lock glyphs in an 8px-high capsule at the bottom-right.
+ * This occupies only the lower strip of the right-hand display region. */
+static void draw_lock_glyph(int x, int y, char letter)
+{
+    static const uint8_t c_rows[5] = { 0x3, 0x4, 0x4, 0x4, 0x3 };
+    static const uint8_t n_rows[5] = { 0x4, 0x6, 0x5, 0x5, 0x5 };
+    static const uint8_t s_rows[5] = { 0x3, 0x4, 0x2, 0x1, 0x6 };
+    const uint8_t *rows = letter == 'C' ? c_rows :
+                          letter == 'N' ? n_rows : s_rows;
+    for (int row = 0; row < 5; row++) {
+        for (int col = 0; col < 3; col++) {
+            if (rows[row] & BIT(2 - col)) pixel(x + col, y + row);
+        }
+    }
+}
+
 static void draw_lock_indicators(void)
 {
-    static const struct {
-        uint8_t mask;
-        char letter;
-    } locks[] = {
+    static const struct { uint8_t mask; char letter; } locks[] = {
         { HID_INDICATOR_CAPS_LOCK, 'C' },
         { HID_INDICATOR_NUM_LOCK, 'N' },
         { HID_INDICATOR_SCROLL_LOCK, 'S' },
     };
 
-    uint8_t active_count = 0;
+    int count = 0;
     for (size_t i = 0; i < ARRAY_SIZE(locks); i++) {
-        if (lock_indicators & locks[i].mask) active_count++;
+        if (lock_indicators & locks[i].mask) count++;
     }
-    if (active_count == 0) return;
+    if (count == 0) return;
 
-    const int box_size = 12;
-    const int gap = 3;
-    const int total_width = active_count * box_size + (active_count - 1) * gap;
-    int x = (OLED_W - total_width) / 2;
-    const int y = (OLED_H - box_size) / 2;
+    const int gap = 2;
+    const int width = 4 + count * 3 + (count - 1) * gap;
+    const int x = OLED_W - width - 1;
+    const int y = 24;
 
+    /* Rounded 8px-high outline; keep all drawing within the right region. */
+    pixel(x + 1, y);
+    hline(x + 2, y, width - 4);
+    pixel(x + width - 2, y);
+    pixel(x + 1, y + 7);
+    hline(x + 2, y + 7, width - 4);
+    pixel(x + width - 2, y + 7);
+    vline(x, y + 2, 4);
+    vline(x + width - 1, y + 2, 4);
+
+    int glyph_x = x + 2;
     for (size_t i = 0; i < ARRAY_SIZE(locks); i++) {
         if (!(lock_indicators & locks[i].mask)) continue;
-        outline_rect(x, y, box_size, box_size);
-        char label[] = { locks[i].letter, '\0' };
-        draw_text(label, x + 3, y + 2);
-        x += box_size + gap;
+        draw_lock_glyph(glyph_x, y + 1, locks[i].letter);
+        glyph_x += 3 + gap;
     }
 }
 
@@ -434,18 +430,23 @@ static int dashboard_flush(void)
     return display_write(oled, 0, 0, &desc, framebuffer);
 }
 
-static void draw_layer_screen(void)
+static void draw_layer_panel(void)
 {
-    const int y = (OLED_H - 14) / 2;
-    const int width = (int)strlen(active_layer_name) * 12;
-    if (width <= OLED_W) {
-        draw_large_text(active_layer_name, (OLED_W - width) / 2, y);
-    } else {
-        const int cycle = width + 24;
-        const int offset = layer_scroll_px % cycle;
-        draw_large_text(active_layer_name, -offset, y);
-        draw_large_text(active_layer_name, width + 24 - offset, y);
-    }
+    const int x = 49;
+    const int y = 1;
+    const int width = 78;
+    const int height = 14;
+    char label[13];
+    size_t len = strlen(active_layer_name);
+    if (len > sizeof(label) - 1) len = sizeof(label) - 1;
+    memcpy(label, active_layer_name, len);
+    label[len] = '\0';
+
+    outline_rect(x, y, width, height);
+    const int text_width = (int)len * 6 - (len > 0 ? 1 : 0);
+    const int text_x = x + (width - text_width) / 2;
+    const int text_y = y + (height - 7) / 2;
+    draw_text(label, text_x, text_y);
 }
 
 static void draw_timeout_feedback(void)
@@ -467,54 +468,15 @@ static void draw_timeout_feedback(void)
     draw_large_text(value, (OLED_W - value_width) / 2, 17);
 }
 
-static void draw_modifier_family(void)
-{
-    const uint8_t masks[4] = {
-        MOD_LCTL | MOD_RCTL,
-        layout_windows_mode ? (MOD_LGUI | MOD_RGUI) : (MOD_LALT | MOD_RALT),
-        layout_windows_mode ? (MOD_LALT | MOD_RALT) : (MOD_LGUI | MOD_RGUI),
-        MOD_LSFT | MOD_RSFT,
-    };
-    const uint8_t *const mac_icons[4] = {
-        modifier_control_bits, modifier_opt_bits, modifier_cmd_bits, modifier_shift_bits,
-    };
-    const uint8_t *const win_icons[4] = {
-        modifier_control_bits, modifier_win_bits, modifier_alt_bits, modifier_shift_bits,
-    };
-    const uint8_t *const *icons = layout_windows_mode ? win_icons : mac_icons;
-    const uint8_t active = zmk_hid_get_explicit_mods();
-
-    /* Four 32px slots, each holding the original 14x14 Hana glyph. */
-    for (int i = 0; i < 4; i++) {
-        const int x = i * 32 + 9;
-        const bool pressed = (active & masks[i]) != 0;
-        draw_modifier_bitmap(x, 8, icons[i], pressed);
-        if (pressed) {
-            /* A short underline reinforces the inverted icon state. */
-            hline(x, 25, 14);
-            hline(x, 26, 14);
-        }
-    }
-}
-
 static int dashboard_render(void)
 {
     memset(framebuffer, 0, sizeof(framebuffer));
 
-    /* Timeout feedback takes priority over layers and dashboard views. */
+    /* Preserve the established full-screen timeout and layout confirmations. */
     if (timeout_feedback_active) {
         draw_timeout_feedback();
         return dashboard_flush();
     }
-
-    /* Any active non-base layer owns the screen until it is released. */
-    if (active_layer != 0) {
-        draw_layer_screen();
-        return dashboard_flush();
-    }
-
-    /* Brief full-screen OS confirmation, matching the bordered layer badge
-     * treatment used by the established Hana 128x64 status UI. */
     if (layout_flash_active) {
         const char *label = layout_windows_mode ? "WIN" : "MAC";
         const int width = (int)strlen(label) * 12;
@@ -523,12 +485,7 @@ static int dashboard_render(void)
         return dashboard_flush();
     }
 
-    if (base_view_mode == 1) {
-        draw_modifier_family();
-        return dashboard_flush();
-    }
-
-    /* Original, tested connection and battery dashboard. */
+    /* Left-hand USB/BT status region is unchanged from the safe checkpoint. */
     draw_usb_icon(7, 2);
     draw_bluetooth_icon(7, 17);
     draw_bt_state(17, 17);
@@ -540,31 +497,17 @@ static int dashboard_render(void)
         draw_active_transport_marker(1, 19);
     }
 
-    draw_battery_row(2, 'L', half_level[0]);
-    draw_battery_row(18, 'R', half_level[1]);
-    draw_lock_indicators();
-    return dashboard_flush();
-}
-
-static void layer_scroll_handler(struct k_work *work)
-{
-    ARG_UNUSED(work);
-    if (active_layer == 0) return;
-
-    const int width = (int)strlen(active_layer_name) * 12;
-    if (width <= OLED_W) return;
-
-    const int cycle = width + 24;
-    layer_scroll_px++;
-    if (layer_scroll_px >= cycle) {
-        layer_scroll_px = 0;
-        (void)dashboard_render();
-        (void)k_work_reschedule(&layer_scroll_work, K_MSEC(650));
-        return;
+    /* Only the right-hand upper region changes with the active layer. */
+    if (active_layer_is_base) {
+        draw_battery_row(0, 'L', half_level[0]);
+        draw_battery_row(11, 'R', half_level[1]);
+    } else {
+        draw_layer_panel();
     }
 
-    (void)dashboard_render();
-    (void)k_work_reschedule(&layer_scroll_work, K_MSEC(35));
+    /* Lock state is independent of BASE batteries vs. the layer-name panel. */
+    draw_lock_indicators();
+    return dashboard_flush();
 }
 
 static void timeout_feedback_timeout_handler(struct k_work *work)
@@ -593,23 +536,33 @@ static void layout_probe_handler(struct k_work *work)
     (void)dashboard_render();
 }
 
+static bool layer_name_is_base(const char *name)
+{
+    if (name == NULL || strlen(name) != 4) return false;
+    static const char base[] = "BASE";
+    for (size_t i = 0; i < 4; i++) {
+        char c = name[i];
+        if (c >= 'a' && c <= 'z') c = (char)(c - 'a' + 'A');
+        if (c != base[i]) return false;
+    }
+    return true;
+}
+
 static void refresh_layer_state(void)
 {
     const uint8_t next_layer = zmk_keymap_highest_layer_active();
-    if (next_layer == active_layer) return;
+    const char *name = zmk_keymap_layer_name(next_layer);
+    const bool next_is_base = (name != NULL && name[0] != '\0')
+                                  ? layer_name_is_base(name)
+                                  : next_layer == 0;
+    if (next_layer == active_layer && next_is_base == active_layer_is_base) return;
 
     active_layer = next_layer;
-    layer_scroll_px = 0;
-    const char *name = zmk_keymap_layer_name(active_layer);
+    active_layer_is_base = next_is_base;
     if (name == NULL || name[0] == '\0') {
         snprintk(active_layer_name, sizeof(active_layer_name), "LAYER %u", active_layer);
     } else {
         snprintk(active_layer_name, sizeof(active_layer_name), "%s", name);
-    }
-
-    (void)k_work_cancel_delayable(&layer_scroll_work);
-    if (active_layer != 0 && strlen(active_layer_name) * 12 > OLED_W) {
-        (void)k_work_reschedule(&layer_scroll_work, K_MSEC(650));
     }
     (void)dashboard_render();
 }
@@ -730,7 +683,6 @@ static int hana_128x32_dashboard_init(void)
     if (err) return err;
     raw_apply_display_power();
 
-    k_work_init_delayable(&layer_scroll_work, layer_scroll_handler);
     k_work_init_delayable(&layout_probe_work, layout_probe_handler);
     k_work_init_delayable(&layout_flash_work, layout_flash_timeout_handler);
     k_work_init_delayable(&timeout_feedback_work, timeout_feedback_timeout_handler);
