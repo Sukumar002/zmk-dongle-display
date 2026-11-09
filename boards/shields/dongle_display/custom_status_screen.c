@@ -25,7 +25,7 @@ static struct zmk_widget_timeout_status timeout_status_widget;
 static struct zmk_widget_dongle_battery_status dongle_battery_status_widget;
 #endif
 
-#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_LAYER)
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_LAYER) || IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
 static struct zmk_widget_layer_status layer_status_widget;
 #endif
 
@@ -80,6 +80,10 @@ lv_obj_t *zmk_display_status_screen() {
     lv_obj_align(zmk_widget_dongle_battery_status_obj(&dongle_battery_status_widget),
                  LV_ALIGN_TOP_RIGHT, 0, 0);
 #endif
+    /* Reuse the existing persistent non-base layer widget over the L/R rows. */
+    zmk_widget_layer_status_init(&layer_status_widget, screen);
+    lv_obj_align(zmk_widget_layer_status_obj(&layer_status_widget),
+                 LV_ALIGN_TOP_RIGHT, 0, 0);
     return screen;
 #else
 #if IS_ENABLED(CONFIG_ZMK_UNIVERSAL_DONGLE_CENTRAL_IDENTITY)
