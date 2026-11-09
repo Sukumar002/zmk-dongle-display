@@ -34,7 +34,8 @@ static bool is_compact_display(void) {
 static bool layer_is_base(struct layer_status_state state) {
     if (state.name != NULL && state.name[0] != '\0') {
         return strcmp(state.name, "BASE") == 0 ||
-               strcmp(state.name, "Base") == 0;
+               strcmp(state.name, "Base") == 0 ||
+               strcmp(state.name, "base") == 0;
     }
 
     /* Fall back to the conventional first layer only when no name is exposed. */
