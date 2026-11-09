@@ -13,6 +13,9 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/display.h>
 #include <zmk/event_manager.h>
 #include <zmk/events/hid_indicators_changed.h>
+#include <zmk/events/keycode_state_changed.h>
+#include <zmk/events/position_state_changed.h>
+#include <zmk/events/layer_state_changed.h>
 #include <zmk/hid.h>
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
@@ -92,9 +95,9 @@ void hid_indicators_update_cb(struct hid_indicators_state state) {
 }
 
 static struct hid_indicators_state hid_indicators_get_state(const zmk_event_t *eh) {
-    struct zmk_hid_indicators_changed *ev = as_zmk_hid_indicators_changed(eh);
+    const struct zmk_hid_indicators_changed *ev = as_zmk_hid_indicators_changed(eh);
     return (struct hid_indicators_state) {
-        .hid_indicators = ev->indicators,
+        .hid_indicators = ev ? ev->indicators : zmk_hid_indicators_get_current_profile(),
 #if HANA_HAS_GUI_ALT_LAYOUT_SHIFT
         .windows_mode = hana_layout_shift_windows_mode(),
 #else
@@ -107,6 +110,9 @@ ZMK_DISPLAY_WIDGET_LISTENER(widget_hid_indicators, struct hid_indicators_state,
                             hid_indicators_update_cb, hid_indicators_get_state)
 
 ZMK_SUBSCRIPTION(widget_hid_indicators, zmk_hid_indicators_changed);
+ZMK_SUBSCRIPTION(widget_hid_indicators, zmk_keycode_state_changed);
+ZMK_SUBSCRIPTION(widget_hid_indicators, zmk_position_state_changed);
+ZMK_SUBSCRIPTION(widget_hid_indicators, zmk_layer_state_changed);
 
 int zmk_widget_hid_indicators_init(struct zmk_widget_hid_indicators *widget, lv_obj_t *parent) {
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
