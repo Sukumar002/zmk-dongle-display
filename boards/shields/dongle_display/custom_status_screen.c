@@ -7,6 +7,7 @@
 #include "custom_status_screen.h"
 #include "widgets/battery_status.h"
 #include "widgets/modifiers.h"
+#include "widgets/modifiers_compact.h"
 #include "widgets/bongo_cat.h"
 #include "widgets/layer_status.h"
 #include "widgets/output_status.h"
@@ -19,6 +20,9 @@
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
 static struct zmk_widget_output_status output_status_widget;
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32) && IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_MODIFIERS)
+static struct zmk_widget_compact_modifiers compact_modifiers_widget;
+#endif
 static struct zmk_widget_timeout_status timeout_status_widget;
 
 #if IS_ENABLED(CONFIG_ZMK_BATTERY) && !IS_ENABLED(CONFIG_ZMK_UNIVERSAL_DONGLE_CENTRAL_IDENTITY)
@@ -81,6 +85,11 @@ lv_obj_t *zmk_display_status_screen() {
     zmk_widget_hid_indicators_init(&hid_indicators_widget, screen);
     lv_obj_align(zmk_widget_hid_indicators_obj(&hid_indicators_widget),
                  LV_ALIGN_BOTTOM_RIGHT, -1, 0);
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_MODIFIERS)
+    zmk_widget_compact_modifiers_init(&compact_modifiers_widget, screen);
+    lv_obj_align(zmk_widget_compact_modifiers_obj(&compact_modifiers_widget),
+                 LV_ALIGN_BOTTOM_LEFT, 0, 0);
+#endif
     /* Preserve the existing non-base layer label behavior. */
     zmk_widget_layer_status_init(&layer_status_widget, screen);
     lv_obj_align(zmk_widget_layer_status_obj(&layer_status_widget),
