@@ -306,29 +306,24 @@ static void draw_profile_number(int x, int y, uint8_t profile)
     }
 }
 
-/* Each battery is 17x10, with a substantial six-pixel charge window. */
+/* Compact 15x7 battery: sized for the dedicated 20px upper-right area. */
 static void draw_battery_icon(int x, int y, uint8_t level)
 {
-    hline(x, y, 14);
-    hline(x, y + 9, 14);
-    vline(x, y, 10);
-    vline(x + 13, y, 10);
-    vline(x + 15, y + 3, 4);
+    hline(x, y, 11);
+    hline(x, y + 6, 11);
+    vline(x, y, 7);
+    vline(x + 10, y, 7);
+    vline(x + 12, y + 2, 3);
     if (level != 0xff) {
-        int fill = (MIN(level, 100) * 10 + 50) / 100;
+        int fill = (MIN(level, 100) * 7 + 50) / 100;
         for (int xx = x + 2; xx < x + 2 + fill; xx++)
-            for (int yy = y + 2; yy < y + 8; yy++) pixel(xx, yy);
+            for (int yy = y + 2; yy < y + 5; yy++) pixel(xx, yy);
     }
 }
 
 static void draw_battery_row(int y, char side, uint8_t level)
 {
-    /* Reserve a fixed four-character field:
-     *   0..99  -> "L 99" (two digits, with the leading position blank)
-     *   100    -> "L100" (the blank position is filled by the third digit)
-     * Unknown -> "L --"
-     * This keeps both labels right-aligned and leaves one character-cell
-     * between the value and the battery icon. */
+    /* Four glyphs occupy 23px; the compact battery sits at the far right. */
     char label[5] = { side, ' ', '-', '-', 0 };
 
     if (level != 0xff) {
@@ -343,10 +338,8 @@ static void draw_battery_row(int y, char side, uint8_t level)
         }
     }
 
-    /* Four glyphs occupy 23 pixels (5px glyph + 1px advance each).
-     * End the final glyph six pixels before the battery outline. */
-    draw_text(label, 79, y + 1);
-    draw_battery_icon(108, y, level);
+    draw_text(label, 79, y);
+    draw_battery_icon(109, y, level);
 }
 
 /* Exact 14x14 modifier glyphs from the established Hana 128x64
@@ -391,8 +384,8 @@ static void draw_modifier_bitmap(int x, int y, const uint8_t *bits, bool inverte
     }
 }
 
-/* Show only active host lock states. The complete group is centered in the
- * 54px dashboard gap; each active letter gets its own 12x12 square. */
+/* Keep C/N/S visible in the dedicated lower-right 12px strip.
+ * An outline appears only while that host lock is active. */
 static void draw_lock_indicators(void)
 {
     static const struct {
@@ -404,21 +397,17 @@ static void draw_lock_indicators(void)
         { HID_INDICATOR_SCROLL_LOCK, 'S' },
     };
 
-    uint8_t active_count = 0;
-    for (size_t i = 0; i < ARRAY_SIZE(locks); i++) {
-        if (lock_indicators & locks[i].mask) active_count++;
-    }
-    if (active_count == 0) return;
-
     const int box_size = 12;
-    const int gap = 3;
-    const int total_width = active_count * box_size + (active_count - 1) * gap;
-    int x = (OLED_W - total_width) / 2;
-    const int y = (OLED_H - box_size) / 2;
+    const int gap = 2;
+    const int total_width = ARRAY_SIZE(locks) * box_size +
+                            (ARRAY_SIZE(locks) - 1) * gap;
+    int x = OLED_W - total_width - 1;
+    const int y = OLED_H - box_size;
 
     for (size_t i = 0; i < ARRAY_SIZE(locks); i++) {
-        if (!(lock_indicators & locks[i].mask)) continue;
-        outline_rect(x, y, box_size, box_size);
+        if (lock_indicators & locks[i].mask) {
+            outline_rect(x, y, box_size, box_size);
+        }
         char label[] = { locks[i].letter, '\0' };
         draw_text(label, x + 3, y + 2);
         x += box_size + gap;
@@ -540,8 +529,9 @@ static int dashboard_render(void)
         draw_active_transport_marker(1, 19);
     }
 
-    draw_battery_row(2, 'L', half_level[0]);
-    draw_battery_row(18, 'R', half_level[1]);
+    /* Two compact battery rows occupy the upper 20px of the right panel. */
+    draw_battery_row(1, 'L', half_level[0]);
+    draw_battery_row(10, 'R', half_level[1]);
     draw_lock_indicators();
     return dashboard_flush();
 }
