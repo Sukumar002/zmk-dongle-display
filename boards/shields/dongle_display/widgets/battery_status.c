@@ -413,6 +413,21 @@ int zmk_widget_dongle_battery_status_init(struct zmk_widget_dongle_battery_statu
     return 0;
 }
 
+void zmk_widget_dongle_battery_status_set_hidden(bool hidden) {
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
+    struct zmk_widget_dongle_battery_status *widget;
+    SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
+        if (hidden) {
+            lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_clear_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+#else
+    ARG_UNUSED(hidden);
+#endif
+}
+
 lv_obj_t *zmk_widget_dongle_battery_status_obj(struct zmk_widget_dongle_battery_status *widget) {
     return widget->obj;
 }
