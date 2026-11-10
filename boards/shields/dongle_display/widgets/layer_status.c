@@ -6,6 +6,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/events/layer_state_changed.h>
 #include <zmk/event_manager.h>
 #include <zmk/keymap.h>
+#include "../compact_renderer.h"
 #include "layer_status.h"
 
 static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
@@ -28,6 +29,14 @@ static const char *fallback_layer_name(uint8_t index) {
 static void set_layer_text(struct zmk_widget_layer_status *widget,
                            struct layer_status_state state) {
     widget->layer = state.index;
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_MODE)
+    const char *compact_name = state.name;
+    if (compact_name == NULL || compact_name[0] == '\0')
+        compact_name = fallback_layer_name(state.index);
+    zmk_compact_renderer_set_layer(state.index, compact_name);
+    if (widget->obj) lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
+    return;
+#endif
     if (state.index == 0 && !base_text_enabled) {
         lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
         return;
