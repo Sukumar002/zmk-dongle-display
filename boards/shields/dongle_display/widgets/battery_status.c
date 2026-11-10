@@ -181,7 +181,9 @@ static void set_battery_symbol(lv_obj_t *widget, struct battery_state state) {
     if (!is_dongle) {
         uint8_t side = state.source - SOURCE_OFFSET;
         if (side > 1) return;
-        if (state.level >= 100) {
+        if (state.level == UINT8_MAX) {
+            lv_label_set_text_fmt(label, "%c --", side == 0 ? 'L' : 'R');
+        } else if (state.level >= 100) {
             lv_label_set_text_fmt(label, "%c100", side == 0 ? 'L' : 'R');
         } else {
             lv_label_set_text_fmt(label, "%c %02u", side == 0 ? 'L' : 'R', state.level);
