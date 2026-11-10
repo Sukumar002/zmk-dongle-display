@@ -83,6 +83,22 @@ static void hide_timer_cb(lv_timer_t *timer) {
     lv_timer_pause(timer);
 }
 
+static void set_timeout_overlay_mode(struct zmk_widget_timeout_status *widget, bool full_screen) {
+    lv_obj_t *parent = lv_obj_get_parent(widget->obj);
+
+    if (full_screen) {
+        lv_obj_set_size(widget->obj, lv_obj_get_width(parent), lv_obj_get_height(parent));
+        lv_obj_set_style_bg_color(widget->obj, lv_color_white(), 0);
+        lv_obj_set_style_bg_opa(widget->obj, LV_OPA_COVER, 0);
+    } else {
+        lv_obj_set_size(widget->obj, 112, 14);
+        lv_obj_set_style_bg_opa(widget->obj, LV_OPA_TRANSP, 0);
+    }
+
+    lv_obj_set_style_border_width(widget->obj, 0, 0);
+    lv_obj_align(widget->obj, LV_ALIGN_CENTER, 0, 0);
+}
+
 static void set_timeout_text(lv_obj_t *label, enum zmk_runtime_timeout_kind kind,
                              uint32_t timeout_ms) {
     if (timeout_ms == 0) {
@@ -135,6 +151,8 @@ static void timeout_status_update_cb(struct timeout_state state) {
         return;
     }
 
+    /* Timeout feedback temporarily replaces the whole status UI. */
+    set_timeout_overlay_mode(active_widget, true);
     /* Runtime timeout feedback keeps its icon; board-name feedback is text-only. */
     lv_obj_clear_flag(active_widget->icon, LV_OBJ_FLAG_HIDDEN);
     if (state.kind == ZMK_RUNTIME_TIMEOUT_DISPLAY) {
@@ -173,6 +191,9 @@ ZMK_SUBSCRIPTION(widget_timeout_status, zmk_runtime_timeout_changed);
 int zmk_widget_timeout_status_init(struct zmk_widget_timeout_status *widget, lv_obj_t *parent) {
     widget->obj = lv_obj_create(parent);
     lv_obj_set_size(widget->obj, 112, 14);
+    lv_obj_set_style_bg_opa(widget->obj, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(widget->obj, 0, 0);
+    lv_obj_align(widget->obj, LV_ALIGN_CENTER, 0, 0);
 
     widget->icon = lv_canvas_create(widget->obj);
     lv_canvas_set_buffer(widget->icon, icon_buf, ICON_W, ICON_H, LV_COLOR_FORMAT_L8);
@@ -208,7 +229,8 @@ void zmk_widget_timeout_status_show_keyboard_name(const char *name) {
     }
     uppercase_name[i] = '\0';
 
-    /* The board switch banner is just the uppercase name; no keyboard glyph. */
+    /* The board switch banner stays compact and left-aligned, unlike timeout overlays. */
+    set_timeout_overlay_mode(active_widget, false);
     lv_obj_add_flag(active_widget->icon, LV_OBJ_FLAG_HIDDEN);
     lv_label_set_text(active_widget->label, uppercase_name);
     lv_obj_align(active_widget->label, LV_ALIGN_LEFT_MID, 0, 0);
