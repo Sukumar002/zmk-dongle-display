@@ -92,7 +92,7 @@ static void set_timeout_text(lv_obj_t *label, enum zmk_runtime_timeout_kind kind
 
     if (kind == ZMK_RUNTIME_TIMEOUT_DISPLAY) {
         if (timeout_ms == 300000) {
-            lv_label_set_text(label, "300s");
+            lv_label_set_text(label, "5m");
         } else {
             lv_label_set_text_fmt(label, "%us", timeout_ms / 1000);
         }
