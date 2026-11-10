@@ -28,6 +28,8 @@ static uint8_t bt_profile;
 static bool battery_valid[2];
 static uint8_t battery_level[2];
 static bool battery_charging[2];
+static uint8_t active_layer;
+static char active_layer_name[32] = "BASE";
 
 static const uint8_t *glyph(char c) {
     static const uint8_t blank[7] = {0};
@@ -147,30 +149,40 @@ static void draw_status_mark(int x, int y, bool good, bool open) {
     }
 }
 
-static void draw_battery(int row, int level, bool charging) {
+static void draw_battery_row(int row, char side) {
     const int y = row == 0 ? 3 : 19;
-    char value[5];
-    if (level > 100) level = 100;
-    if (level == 100) {
-        value[0] = '1'; value[1] = '0'; value[2] = '0'; value[3] = '%'; value[4] = 0;
-    } else {
-        value[0] = (char)('0' + (level / 10));
-        value[1] = (char)('0' + (level % 10));
-        value[2] = '%'; value[3] = 0;
-        if (level < 10) { value[0] = (char)('0' + level); value[1] = '%'; value[2] = 0; }
+    char value[5] = { side, ' ', '-', '-', 0 };
+    if (battery_valid[row]) {
+        int level = battery_level[row] > 100 ? 100 : battery_level[row];
+        if (level == 100) {
+            value[1] = '1'; value[2] = '0'; value[3] = '0';
+        } else {
+            value[2] = (char)('0' + level / 10);
+            value[3] = (char)('0' + level % 10);
+        }
     }
-    draw_text(91, y, value);
-    /* 6x9 battery outline, with fill proportional to charge. */
-    hline(119, y + 1, 7); hline(119, y + 8, 7);
-    vline(119, y + 2, 6); vline(125, y + 2, 6);
-    px(121, y); px(122, y);
-    if (charging) {
-        px(122, y + 2); px(121, y + 4); px(123, y + 4);
-        px(122, y + 6);
-    } else {
-        int fill = (level * 4) / 100;
-        for (int yy = 0; yy < fill; yy++) hline(121, y + 7 - yy, 3);
+    /* Fixed four-character fields: L 00 / R 00, or L100 / R100. */
+    draw_text(99, y + 1, value);
+}
+
+static void draw_layer_panel(void) {
+    const int x = 88, y = 3, width = 39, height = 26;
+    hline(x, y, width); hline(x, y + height - 1, width);
+    vline(x, y, height); vline(x + width - 1, y, height);
+
+    char label[7];
+    size_t n = 0;
+    while (active_layer_name[n] && n < sizeof(label) - 1) {
+        label[n] = active_layer_name[n];
+        n++;
     }
+    label[n] = '\0';
+    int text_px = text_width(label);
+    if (text_px > width - 6) {
+        label[6] = '\0';
+        text_px = text_width(label);
+    }
+    draw_text(x + (width - text_px) / 2, 12, label);
 }
 
 static void render(void) {
@@ -184,8 +196,12 @@ static void render(void) {
     draw_text(13, 22, bt_profile < 5 ? (const char *[]){"1","2","3","4","5"}[bt_profile] : "?");
     draw_status_mark(21, 22, bt_connected, !bt_bonded);
 
-    if (battery_valid[0]) draw_battery(0, battery_level[0], battery_charging[0]);
-    if (battery_valid[1]) draw_battery(1, battery_level[1], battery_charging[1]);
+    if (active_layer == 0) {
+        draw_battery_row(0, 'L');
+        draw_battery_row(1, 'R');
+    } else {
+        draw_layer_panel();
+    }
 }
 
 int zmk_compact_renderer_init(lv_obj_t *parent) {
@@ -213,6 +229,21 @@ void zmk_compact_renderer_set_battery(uint8_t half, uint8_t level, bool charging
     battery_valid[half] = present && level > 0;
     battery_level[half] = level;
     battery_charging[half] = charging;
+    render();
+}
+
+void zmk_compact_renderer_set_layer(uint8_t layer, const char *name) {
+    active_layer = layer;
+    if (name == NULL || name[0] == '\0') {
+        active_layer_name[0] = '\0';
+    } else {
+        size_t n = 0;
+        while (name[n] && n < sizeof(active_layer_name) - 1) {
+            active_layer_name[n] = name[n];
+            n++;
+        }
+        active_layer_name[n] = '\0';
+    }
     render();
 }
 
