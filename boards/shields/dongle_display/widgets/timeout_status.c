@@ -8,6 +8,8 @@
 #include <zmk/display.h>
 #include <zmk/event_manager.h>
 #include <zmk/events/runtime_timeout_changed.h>
+#include <zmk/events/usb_conn_state_changed.h>
+#include <zmk/usb.h>
 
 #include "timeout_status.h"
 
@@ -187,6 +189,37 @@ ZMK_DISPLAY_WIDGET_LISTENER(widget_timeout_status, struct timeout_state,
                             timeout_status_update_cb, timeout_status_get_state)
 ZMK_SUBSCRIPTION(widget_timeout_status, zmk_runtime_timeout_changed);
 
+/*
+ * USB_CONN_HID covers CONFIGURED, SUSPEND and RESUME. Only NONE ->
+ * powered/connected represents a physical USB plug-in.
+ */
+struct usb_conn_state {
+    enum zmk_usb_conn_state state;
+};
+
+static enum zmk_usb_conn_state last_usb_conn_state = ZMK_USB_CONN_NONE;
+
+static struct usb_conn_state keyboard_name_usb_get_state(const zmk_event_t *eh) {
+    if (eh == NULL) {
+        return (struct usb_conn_state){.state = ZMK_USB_CONN_NONE};
+    }
+    const struct zmk_usb_conn_state_changed *ev = as_zmk_usb_conn_state_changed(eh);
+    return (struct usb_conn_state){.state = ev->conn_state};
+}
+
+static void keyboard_name_usb_update_cb(struct usb_conn_state state) {
+    bool plugged_in = last_usb_conn_state == ZMK_USB_CONN_NONE &&
+                      state.state != ZMK_USB_CONN_NONE;
+    last_usb_conn_state = state.state;
+    if (plugged_in && active_widget != NULL) {
+        zmk_widget_timeout_status_show_keyboard_name(CONFIG_ZMK_KEYBOARD_NAME);
+    }
+}
+
+ZMK_DISPLAY_WIDGET_LISTENER(widget_keyboard_name_usb, struct usb_conn_state,
+                            keyboard_name_usb_update_cb, keyboard_name_usb_get_state)
+ZMK_SUBSCRIPTION(widget_keyboard_name_usb, zmk_usb_conn_state_changed);
+
 int zmk_widget_timeout_status_init(struct zmk_widget_timeout_status *widget, lv_obj_t *parent) {
     widget->obj = lv_obj_create(parent);
     lv_obj_set_size(widget->obj, 112, 14);
@@ -206,8 +239,12 @@ int zmk_widget_timeout_status_init(struct zmk_widget_timeout_status *widget, lv_
 
     lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
     active_widget = widget;
-
+    /* Treat USB already attached during boot as the initial plug-in. */
+    last_usb_conn_state = zmk_usb_get_conn_state();
     widget_timeout_status_init();
+    if (last_usb_conn_state != ZMK_USB_CONN_NONE) {
+        zmk_widget_timeout_status_show_keyboard_name(CONFIG_ZMK_KEYBOARD_NAME);
+    }
     return 0;
 }
 
@@ -228,12 +265,12 @@ void zmk_widget_timeout_status_show_keyboard_name(const char *name) {
     }
     uppercase_name[i] = '\0';
 
-    /* The board switch banner stays compact and left-aligned, unlike timeout overlays. */
-    set_timeout_overlay_mode(active_widget, false);
+    /* USB plug-in splash briefly replaces the full status UI. */
+    set_timeout_overlay_mode(active_widget, true);
     lv_obj_add_flag(active_widget->icon, LV_OBJ_FLAG_HIDDEN);
     lv_label_set_text(active_widget->label, uppercase_name);
-    lv_obj_align(active_widget->label, LV_ALIGN_LEFT_MID, 0, 0);
-    /* Inherit the screen's compact unscii_8 font to prevent long names clipping. */
+    lv_obj_set_style_text_color(active_widget->label, lv_color_black(), 0);
+    lv_obj_align(active_widget->label, LV_ALIGN_CENTER, 0, 0);
     lv_obj_clear_flag(active_widget->obj, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(active_widget->obj);
     lv_timer_set_period(active_widget->hide_timer, 2500);
