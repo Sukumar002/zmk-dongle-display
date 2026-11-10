@@ -110,6 +110,9 @@ int zmk_widget_layer_status_init(struct zmk_widget_layer_status *widget,
 
     lv_obj_set_width(widget->label, 60);
     lv_obj_set_width(widget->label_bold, 60);
+    /* Keep long names inside the layer badge and scroll only when needed. */
+    lv_label_set_long_mode(widget->label, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    lv_label_set_long_mode(widget->label_bold, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_style_text_align(widget->label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_align(widget->label_bold, LV_TEXT_ALIGN_CENTER, 0);
 
