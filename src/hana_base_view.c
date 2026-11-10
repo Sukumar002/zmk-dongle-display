@@ -44,6 +44,10 @@ static void apply_base_view(void) {
 #endif
 }
 
+void hana_base_view_refresh(void) {
+    apply_base_view();
+}
+
 void hana_base_view_cycle(void) {
     base_view_mode = (base_view_mode + 1) % HANA_BASE_VIEW_MODE_COUNT;
 
