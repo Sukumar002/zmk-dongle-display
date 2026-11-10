@@ -66,7 +66,7 @@ lv_obj_t *zmk_display_status_screen() {
 
     zmk_widget_timeout_status_init(&timeout_status_widget, screen);
     /* Temporary timeout feedback shares the center band with the active keyboard name. */
-    lv_obj_align(zmk_widget_timeout_status_obj(&timeout_status_widget), LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_align(zmk_widget_timeout_status_obj(&timeout_status_widget), LV_ALIGN_CENTER, 0, 0);
 #if IS_ENABLED(CONFIG_ZMK_UNIVERSAL_DONGLE_CENTRAL_IDENTITY)
     zmk_universal_oled_status_init(screen, zmk_widget_timeout_status_obj(&timeout_status_widget));
 #endif
