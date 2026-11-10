@@ -177,6 +177,24 @@ static void set_battery_symbol(lv_obj_t *widget, struct battery_state state) {
 
     const bool is_dongle = SOURCE_OFFSET && state.source == 0;
 
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_SIDE_BATTERY_TEXT)
+    if (!is_dongle) {
+        uint8_t side = state.source - SOURCE_OFFSET;
+        if (side > 1) return;
+        if (state.level >= 100) {
+            lv_label_set_text_fmt(label, "%c100", side == 0 ? 'L' : 'R');
+        } else {
+            lv_label_set_text_fmt(label, "%c %02u", side == 0 ? 'L' : 'R', state.level);
+        }
+        stop_charge_breathing(charge_icon);
+        lv_obj_add_flag(symbol, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(charge_icon, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(label, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_move_foreground(label);
+        return;
+    }
+#endif
+
     /*
      * With no battery attached, the dongle ADC can report an empty value while
      * USB is powering the board. Keep the new dongle battery field out of the
@@ -347,16 +365,24 @@ int zmk_widget_dongle_battery_status_init(struct zmk_widget_dongle_battery_statu
             lv_obj_set_pos(charge_canvas, 0, 4);
             lv_obj_set_pos(battery_label, 9, 2);
         } else {
-            /* Split halves: preserve a stable right-side percentage stack. */
+            /* Split halves: keep compact text rows on the right side. */
             int peripheral_index = i - SOURCE_OFFSET;
             int y = peripheral_index * 10;
             lv_obj_set_pos(battery_label, 43, y - 1);
             lv_obj_set_pos(image_canvas, 70, y);
             lv_obj_set_pos(charge_canvas, 70, y);
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_SIDE_BATTERY_TEXT)
+            lv_label_set_text_fmt(battery_label, "%c 00", peripheral_index == 0 ? 'L' : 'R');
+            lv_obj_clear_flag(battery_label, LV_OBJ_FLAG_HIDDEN);
+#endif
         }
 
         lv_obj_add_flag(image_canvas, LV_OBJ_FLAG_HIDDEN);
+#if !IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_SIDE_BATTERY_TEXT)
         lv_obj_add_flag(battery_label, LV_OBJ_FLAG_HIDDEN);
+#else
+        if (SOURCE_OFFSET && i == 0) lv_obj_add_flag(battery_label, LV_OBJ_FLAG_HIDDEN);
+#endif
         lv_obj_add_flag(charge_canvas, LV_OBJ_FLAG_HIDDEN);
 
         battery_objects[i] = (struct battery_object){
