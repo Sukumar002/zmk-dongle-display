@@ -201,7 +201,7 @@ static enum zmk_usb_conn_state last_usb_conn_state = ZMK_USB_CONN_NONE;
 
 static struct usb_conn_state keyboard_name_usb_get_state(const zmk_event_t *eh) {
     if (eh == NULL) {
-        return (struct usb_conn_state){.state = ZMK_USB_CONN_NONE};
+        return (struct usb_conn_state){.state = zmk_usb_get_conn_state()};
     }
     const struct zmk_usb_conn_state_changed *ev = as_zmk_usb_conn_state_changed(eh);
     return (struct usb_conn_state){.state = ev->conn_state};
