@@ -23,7 +23,7 @@ static void clear_icon(lv_obj_t *canvas) {
 }
 
 static void px(lv_obj_t *canvas, int x, int y) {
-    lv_canvas_set_px(canvas, x, y, lv_color_white(), LV_OPA_COVER);
+    lv_canvas_set_px(canvas, x, y, lv_color_black(), LV_OPA_COVER);
 }
 
 static void draw_keyboard_icon(lv_obj_t *canvas) {
