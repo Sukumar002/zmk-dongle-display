@@ -20,3 +20,4 @@ enum hana_base_view_mode {
 
 enum hana_base_view_mode hana_base_view_get_mode(void);
 void hana_base_view_cycle(void);
+void hana_base_view_refresh(void);
