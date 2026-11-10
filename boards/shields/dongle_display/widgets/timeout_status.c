@@ -13,9 +13,9 @@
 
 #define ICON_W 16
 #define ICON_H 12
-#define ICON_BUF_SIZE LV_CANVAS_BUF_SIZE(ICON_W, ICON_H, LV_COLOR_FORMAT_GET_BPP(LV_COLOR_FORMAT_L8), LV_DRAW_BUF_STRIDE_ALIGN)
+#define ICON_BUF_SIZE LV_CANVAS_BUF_SIZE(ICON_W, ICON_H, LV_COLOR_FORMAT_GET_BPP(LV_COLOR_FORMAT_ARGB8888), LV_DRAW_BUF_STRIDE_ALIGN)
 
-static lv_color_t icon_buf[ICON_BUF_SIZE];
+static uint8_t icon_buf[ICON_BUF_SIZE];
 static struct zmk_widget_timeout_status *active_widget;
 
 static void clear_icon(lv_obj_t *canvas) {
@@ -195,7 +195,7 @@ int zmk_widget_timeout_status_init(struct zmk_widget_timeout_status *widget, lv_
     lv_obj_align(widget->obj, LV_ALIGN_CENTER, 0, 0);
 
     widget->icon = lv_canvas_create(widget->obj);
-    lv_canvas_set_buffer(widget->icon, icon_buf, ICON_W, ICON_H, LV_COLOR_FORMAT_L8);
+    lv_canvas_set_buffer(widget->icon, icon_buf, ICON_W, ICON_H, LV_COLOR_FORMAT_ARGB8888);
     lv_obj_align(widget->icon, LV_ALIGN_LEFT_MID, 0, 0);
 
     widget->label = lv_label_create(widget->obj);
