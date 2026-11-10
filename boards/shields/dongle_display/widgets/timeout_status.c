@@ -20,6 +20,19 @@
 static uint8_t icon_buf[ICON_BUF_SIZE];
 static struct zmk_widget_timeout_status *active_widget;
 
+/* A top-layer splash masks every dashboard widget on both display sizes. */
+static lv_obj_t *keyboard_name_splash;
+static lv_obj_t *keyboard_name_label;
+static lv_timer_t *keyboard_name_timer;
+
+static void keyboard_name_splash_hide_cb(lv_timer_t *timer) {
+    ARG_UNUSED(timer);
+    if (keyboard_name_splash != NULL) {
+        lv_obj_add_flag(keyboard_name_splash, LV_OBJ_FLAG_HIDDEN);
+    }
+    lv_timer_pause(keyboard_name_timer);
+}
+
 static void clear_icon(lv_obj_t *canvas) {
     lv_canvas_fill_bg(canvas, lv_color_black(), LV_OPA_TRANSP);
 }
@@ -239,6 +252,22 @@ int zmk_widget_timeout_status_init(struct zmk_widget_timeout_status *widget, lv_
 
     lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
     active_widget = widget;
+
+    keyboard_name_splash = lv_obj_create(lv_layer_top());
+    lv_obj_set_size(keyboard_name_splash, lv_disp_get_hor_res(NULL), lv_disp_get_ver_res(NULL));
+    lv_obj_set_style_bg_color(keyboard_name_splash, lv_color_white(), 0);
+    lv_obj_set_style_bg_opa(keyboard_name_splash, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(keyboard_name_splash, 0, 0);
+    lv_obj_set_style_pad_all(keyboard_name_splash, 0, 0);
+    lv_obj_clear_flag(keyboard_name_splash, LV_OBJ_FLAG_SCROLLABLE);
+
+    keyboard_name_label = lv_label_create(keyboard_name_splash);
+    lv_obj_set_style_text_color(keyboard_name_label, lv_color_black(), 0);
+    lv_obj_center(keyboard_name_label);
+    lv_obj_add_flag(keyboard_name_splash, LV_OBJ_FLAG_HIDDEN);
+    keyboard_name_timer = lv_timer_create(keyboard_name_splash_hide_cb, 2500, NULL);
+    lv_timer_pause(keyboard_name_timer);
+
     /* Treat USB already attached during boot as the initial plug-in. */
     last_usb_conn_state = zmk_usb_get_conn_state();
     widget_timeout_status_init();
@@ -253,7 +282,7 @@ lv_obj_t *zmk_widget_timeout_status_obj(struct zmk_widget_timeout_status *widget
 }
 
 void zmk_widget_timeout_status_show_keyboard_name(const char *name) {
-    if (active_widget == NULL || name == NULL) {
+    if (keyboard_name_splash == NULL || keyboard_name_label == NULL || name == NULL) {
         return;
     }
 
@@ -265,15 +294,12 @@ void zmk_widget_timeout_status_show_keyboard_name(const char *name) {
     }
     uppercase_name[i] = '\0';
 
-    /* USB plug-in splash briefly replaces the full status UI. */
-    set_timeout_overlay_mode(active_widget, true);
-    lv_obj_add_flag(active_widget->icon, LV_OBJ_FLAG_HIDDEN);
-    lv_label_set_text(active_widget->label, uppercase_name);
-    lv_obj_set_style_text_color(active_widget->label, lv_color_black(), 0);
-    lv_obj_align(active_widget->label, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_clear_flag(active_widget->obj, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_move_foreground(active_widget->obj);
-    lv_timer_set_period(active_widget->hide_timer, 2500);
-    lv_timer_reset(active_widget->hide_timer);
-    lv_timer_resume(active_widget->hide_timer);
+    /* This independent top-layer surface hides the entire dashboard. */
+    lv_label_set_text(keyboard_name_label, uppercase_name);
+    lv_obj_center(keyboard_name_label);
+    lv_obj_clear_flag(keyboard_name_splash, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(keyboard_name_splash);
+    lv_timer_set_period(keyboard_name_timer, 2500);
+    lv_timer_reset(keyboard_name_timer);
+    lv_timer_resume(keyboard_name_timer);
 }
