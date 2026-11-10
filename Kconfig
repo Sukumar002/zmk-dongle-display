@@ -8,6 +8,13 @@ config HANA_CHARGE_STATUS
 
 endmenu
 
+config ZMK_DONGLE_DISPLAY_SIDE_BATTERY_TEXT
+    bool "Show split battery levels with physical side labels"
+    default n
+    help
+      Display split battery levels as L 00/R 00 using the established
+      peripheral order. Compact 128x32 mode always uses side labels.
+
 config ZMK_DONGLE_DISPLAY_BASE_LAYER_COUNT
     int "Number of base layers"
     range 1 16
