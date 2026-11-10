@@ -258,6 +258,26 @@ static void set_battery_symbol(lv_obj_t *widget, struct battery_state state) {
 
     const bool is_dongle = SOURCE_OFFSET && state.source == 0;
 
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_SIDE_BATTERY_TEXT)
+    if (!is_dongle) {
+        const uint8_t side = state.source - SOURCE_OFFSET;
+        if (side > 1) return;
+        if (state.level == UINT8_MAX || !state.present) {
+            lv_label_set_text_fmt(label, "%c --", side == 0 ? 'L' : 'R');
+        } else if (state.level >= 100) {
+            lv_label_set_text_fmt(label, "%c100", side == 0 ? 'L' : 'R');
+        } else {
+            lv_label_set_text_fmt(label, "%c %02u", side == 0 ? 'L' : 'R', state.level);
+        }
+        stop_charge_breathing(charge_icon);
+        lv_obj_add_flag(symbol, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(charge_icon, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(label, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_move_foreground(label);
+        return;
+    }
+#endif
+
     /*
      * With no battery attached, the dongle ADC can report an empty value while
      * USB is powering the board. Keep the new dongle battery field out of the
