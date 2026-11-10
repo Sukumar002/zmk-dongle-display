@@ -108,6 +108,14 @@ struct timeout_state {
 };
 
 static struct timeout_state timeout_status_get_state(const zmk_event_t *eh) {
+    if (eh == NULL) {
+        return (struct timeout_state) {
+            .kind = ZMK_RUNTIME_TIMEOUT_DISPLAY,
+            .timeout_ms = 60000,
+            .feedback = ZMK_RUNTIME_TIMEOUT_FEEDBACK_HIDE,
+        };
+    }
+
     const struct zmk_runtime_timeout_changed *ev = as_zmk_runtime_timeout_changed(eh);
     return (struct timeout_state) {
         .kind = ev->kind,
@@ -129,7 +137,6 @@ static void timeout_status_update_cb(struct timeout_state state) {
 
     /* Runtime timeout feedback keeps its icon; board-name feedback is text-only. */
     lv_obj_clear_flag(active_widget->icon, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_align_to(active_widget->label, active_widget->icon, LV_ALIGN_OUT_RIGHT_MID, 4, 0);
     if (state.kind == ZMK_RUNTIME_TIMEOUT_DISPLAY) {
         draw_usb_icon(active_widget->icon);
     } else {
@@ -137,6 +144,13 @@ static void timeout_status_update_cb(struct timeout_state state) {
     }
 
     set_timeout_text(active_widget->label, state.kind, state.timeout_ms);
+    lv_obj_update_layout(active_widget->obj);
+    int label_width = lv_obj_get_width(active_widget->label);
+    int group_width = ICON_W + 4 + label_width;
+    lv_obj_align(active_widget->icon, LV_ALIGN_CENTER,
+                 -(group_width / 2) + (ICON_W / 2), 0);
+    lv_obj_align_to(active_widget->label, active_widget->icon,
+                    LV_ALIGN_OUT_RIGHT_MID, 4, 0);
 
     lv_obj_clear_flag(active_widget->obj, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(active_widget->obj);
@@ -197,7 +211,7 @@ void zmk_widget_timeout_status_show_keyboard_name(const char *name) {
     /* The board switch banner is just the uppercase name; no keyboard glyph. */
     lv_obj_add_flag(active_widget->icon, LV_OBJ_FLAG_HIDDEN);
     lv_label_set_text(active_widget->label, uppercase_name);
-    lv_obj_align(active_widget->label, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_align(active_widget->label, LV_ALIGN_CENTER, 0, 0);
     /* Inherit the screen's compact unscii_8 font to prevent long names clipping. */
     lv_obj_clear_flag(active_widget->obj, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(active_widget->obj);
