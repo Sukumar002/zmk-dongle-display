@@ -27,7 +27,6 @@ static bool bt_bonded;
 static uint8_t bt_profile;
 static bool battery_valid[2];
 static uint8_t battery_level[2];
-static bool battery_charging[2];
 static uint8_t active_layer;
 static char active_layer_name[32] = "BASE";
 
@@ -170,7 +169,7 @@ static void draw_layer_panel(void) {
     hline(x, y, width); hline(x, y + height - 1, width);
     vline(x, y, height); vline(x + width - 1, y, height);
 
-    char label[7];
+    char label[6];
     size_t n = 0;
     while (active_layer_name[n] && n < sizeof(label) - 1) {
         label[n] = active_layer_name[n];
@@ -178,10 +177,6 @@ static void draw_layer_panel(void) {
     }
     label[n] = '\0';
     int text_px = text_width(label);
-    if (text_px > width - 6) {
-        label[6] = '\0';
-        text_px = text_width(label);
-    }
     draw_text(x + (width - text_px) / 2, 12, label);
 }
 
@@ -226,9 +221,9 @@ void zmk_compact_renderer_set_output(bool usb, bool bt, bool bonded, uint8_t pro
 
 void zmk_compact_renderer_set_battery(uint8_t half, uint8_t level, bool charging, bool present) {
     if (half >= 2) return;
-    battery_valid[half] = present && level > 0;
+    battery_valid[half] = present;
     battery_level[half] = level;
-    battery_charging[half] = charging;
+    ARG_UNUSED(charging);
     render();
 }
 
