@@ -11,8 +11,8 @@
 
 #include "timeout_status.h"
 
-#define ICON_W 12
-#define ICON_H 8
+#define ICON_W 16
+#define ICON_H 12
 #define ICON_BUF_SIZE LV_CANVAS_BUF_SIZE(ICON_W, ICON_H, LV_COLOR_FORMAT_GET_BPP(LV_COLOR_FORMAT_L8), LV_DRAW_BUF_STRIDE_ALIGN)
 
 static lv_color_t icon_buf[ICON_BUF_SIZE];
@@ -23,58 +23,57 @@ static void clear_icon(lv_obj_t *canvas) {
 }
 
 static void px(lv_obj_t *canvas, int x, int y) {
-    lv_canvas_set_px(canvas, x, y, lv_color_black(), LV_OPA_COVER);
+    lv_canvas_set_px(canvas, x, y, lv_color_white(), LV_OPA_COVER);
 }
 
 static void draw_keyboard_icon(lv_obj_t *canvas) {
     clear_icon(canvas);
 
-    for (int x = 0; x < 12; x++) {
-        px(canvas, x, 0);
-        px(canvas, x, 7);
+    /* Compact keyboard silhouette with three key rows and a space bar. */
+    for (int x = 1; x <= 14; x++) {
+        px(canvas, x, 2);
+        px(canvas, x, 8);
     }
-    for (int y = 1; y < 7; y++) {
-        px(canvas, 0, y);
-        px(canvas, 11, y);
+    for (int y = 3; y <= 7; y++) {
+        px(canvas, 1, y);
+        px(canvas, 14, y);
     }
 
-    for (int x = 2; x <= 9; x += 2) {
-        px(canvas, x, 2);
+    for (int x = 3; x <= 12; x += 3) {
         px(canvas, x, 4);
-    }
-    for (int x = 3; x <= 8; x++) {
+        px(canvas, x + 1, 4);
         px(canvas, x, 6);
+        px(canvas, x + 1, 6);
+    }
+    for (int x = 5; x <= 10; x++) {
+        px(canvas, x, 7);
     }
 }
 
-static void draw_usb_icon(lv_obj_t *canvas) {
+static void draw_display_icon(lv_obj_t *canvas) {
     clear_icon(canvas);
 
-    /* Landscape USB plug, sized to the original 12x8 timeout icon footprint. */
-    px(canvas, 0, 3);
-    px(canvas, 1, 3);
-    px(canvas, 2, 3);
-    px(canvas, 2, 4);
-    px(canvas, 1, 4);
-    px(canvas, 0, 4);
-
-    for (int x = 3; x <= 9; x++) {
-        px(canvas, x, 1);
-        px(canvas, x, 6);
+    /* Front-facing monitor: screen, neck and stand. */
+    for (int x = 1; x <= 14; x++) {
+        px(canvas, x, 0);
+        px(canvas, x, 7);
     }
-    for (int y = 2; y <= 5; y++) {
-        px(canvas, 3, y);
-        px(canvas, 9, y);
+    for (int y = 1; y <= 6; y++) {
+        px(canvas, 1, y);
+        px(canvas, 14, y);
     }
-
-    px(canvas, 10, 2);
-    px(canvas, 11, 2);
-    px(canvas, 10, 5);
-    px(canvas, 11, 5);
-    px(canvas, 7, 3);
-    px(canvas, 8, 3);
-    px(canvas, 7, 4);
-    px(canvas, 8, 4);
+    for (int x = 7; x <= 8; x++) {
+        px(canvas, x, 8);
+        px(canvas, x, 9);
+    }
+    for (int x = 5; x <= 10; x++) {
+        px(canvas, x, 10);
+    }
+    px(canvas, 4, 11);
+    px(canvas, 11, 11);
+    for (int x = 5; x <= 10; x++) {
+        px(canvas, x, 11);
+    }
 }
 
 static void hide_timer_cb(lv_timer_t *timer) {
@@ -156,7 +155,7 @@ static void timeout_status_update_cb(struct timeout_state state) {
     /* Runtime timeout feedback keeps its icon; board-name feedback is text-only. */
     lv_obj_clear_flag(active_widget->icon, LV_OBJ_FLAG_HIDDEN);
     if (state.kind == ZMK_RUNTIME_TIMEOUT_DISPLAY) {
-        draw_usb_icon(active_widget->icon);
+        draw_display_icon(active_widget->icon);
     } else {
         draw_keyboard_icon(active_widget->icon);
     }
