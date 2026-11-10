@@ -62,12 +62,17 @@ lv_obj_t *zmk_display_status_screen() {
     lv_style_set_text_line_space(&global_style, 1);
     lv_obj_add_style(screen, &global_style, LV_PART_MAIN);
     
-    zmk_widget_output_status_init(&output_status_widget, screen);
-    lv_obj_align(zmk_widget_output_status_obj(&output_status_widget), LV_ALIGN_TOP_LEFT, 0, 0);
-
+    /*
+     * Create the top-layer startup cover before any dashboard widget.
+     * If USB is already attached, its name banner is raised immediately;
+     * the uninitialized dashboard is therefore never exposed on first draw.
+     */
     zmk_widget_timeout_status_init(&timeout_status_widget, screen);
     /* Temporary timeout feedback shares the center band with the active keyboard name. */
     lv_obj_align(zmk_widget_timeout_status_obj(&timeout_status_widget), LV_ALIGN_CENTER, 0, 0);
+
+    zmk_widget_output_status_init(&output_status_widget, screen);
+    lv_obj_align(zmk_widget_output_status_obj(&output_status_widget), LV_ALIGN_TOP_LEFT, 0, 0);
 #if IS_ENABLED(CONFIG_ZMK_UNIVERSAL_DONGLE_CENTRAL_IDENTITY)
     zmk_universal_oled_status_init(screen, zmk_widget_timeout_status_obj(&timeout_status_widget));
 #endif
