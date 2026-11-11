@@ -3,7 +3,7 @@
 ## Working branch and immutable reference points
 
 - Working branch: `architecture/revision`
-- Current branch head: `29a3e358775de7fcf370e7b410cef98e7b912811`
+- Initial two-parent integration commit: `29a3e358775de7fcf370e7b410cef98e7b912811`
 - Chocofi v1.1.0 hardware-tested display-module pin: `0bb5f84ef441d5a23f19006974f4f80a2bea74fa`
 - Chocofi consuming ZMK fork pin: `0e82b8fb198088c9242cad7fb341e83573da65dc`
 - The working branch contains a two-parent integration commit preserving both the repository's main lineage and the Chocofi-tested pin. No changes have been made to `main`.
@@ -121,3 +121,8 @@ Do not treat peripheral charging telemetry as working over BLE until the transpo
 - `src/hana_charge_status.c` is optional but tied to XIAO GPIO0.17.
 
 The refactor should expose generic display-model/base-view interfaces and keep Hana-specific policy/hardware adapters behind an optional integration boundary. Preserve existing Hana settings keys or provide an explicit migration path; do not silently reset user preferences.
+
+
+### CI dependency alignment
+
+The module's sample `config/west.yml` originally tracked upstream ZMK `main`, which lacks fork-specific headers used by the module. The architecture branch now pins the same ZMK fork commit as Chocofi v1.1.0 (`0e82b8fb198088c9242cad7fb341e83573da65dc`). This is required for the module's own CI to compile the current runtime-timeout, side-identity, and charging event APIs. The repository `main` manifest remains unchanged.
