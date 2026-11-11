@@ -36,8 +36,15 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
 static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
 
+enum battery_side {
+    BATTERY_SIDE_UNKNOWN,
+    BATTERY_SIDE_LEFT,
+    BATTERY_SIDE_RIGHT,
+};
+
 struct battery_state {
     uint8_t source;
+    enum battery_side side;
     uint8_t level;
     bool usb_present;
     bool charging;
@@ -64,6 +71,41 @@ static bool cached_charging[ZMK_SPLIT_BLE_PERIPHERAL_COUNT + SOURCE_OFFSET];
  * that, so its phantom battery stays hidden.
  */
 static bool dongle_battery_seen;
+
+/*
+ * The pinned ZMK central maps BLE battery event sources to physical side IDs
+ * when CONFIG_ZMK_SPLIT_BLE_CENTRAL_SIDE_IDENTITY is enabled:
+ *   source 0 -> left, source 1 -> right.
+ *
+ * Keep that translation at this adapter boundary. Never infer a physical
+ * side from connection order, and reject unknown/out-of-range sources.
+ */
+static bool peripheral_battery_source_resolve(uint8_t event_source, uint8_t *source,
+                                              enum battery_side *side) {
+    if (!source || !side || event_source >= ZMK_SPLIT_BLE_PERIPHERAL_COUNT) {
+        return false;
+    }
+
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_BLE_CENTRAL_SIDE_IDENTITY)
+    switch (event_source) {
+    case 0:
+        *source = SOURCE_OFFSET;
+        *side = BATTERY_SIDE_LEFT;
+        break;
+    case 1:
+        *source = SOURCE_OFFSET + 1;
+        *side = BATTERY_SIDE_RIGHT;
+        break;
+    default:
+        return false;
+    }
+#else
+    *source = event_source + SOURCE_OFFSET;
+    *side = BATTERY_SIDE_UNKNOWN;
+#endif
+
+    return *source < ARRAY_SIZE(cached_levels);
+}
 
 #if IS_ENABLED(CONFIG_SETTINGS)
 static int dongle_battery_settings_set(const char *name, size_t len,
@@ -163,7 +205,7 @@ static void stop_charge_breathing(lv_obj_t *icon) {
 }
 
 static void set_battery_symbol(lv_obj_t *widget, struct battery_state state) {
-    if (state.source >= ZMK_SPLIT_BLE_PERIPHERAL_COUNT + SOURCE_OFFSET) {
+    if (state.source >= ARRAY_SIZE(battery_objects)) {
         return;
     }
 
@@ -179,14 +221,17 @@ static void set_battery_symbol(lv_obj_t *widget, struct battery_state state) {
 
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_SIDE_BATTERY_TEXT)
     if (!is_dongle) {
-        uint8_t side = state.source - SOURCE_OFFSET;
-        if (side > 1) return;
+        if (state.side == BATTERY_SIDE_UNKNOWN) {
+            LOG_WRN("Ignoring battery event without a validated physical side");
+            return;
+        }
+        const char side_label = state.side == BATTERY_SIDE_LEFT ? 'L' : 'R';
         if (state.level == UINT8_MAX) {
-            lv_label_set_text_fmt(label, "%c --", side == 0 ? 'L' : 'R');
+            lv_label_set_text_fmt(label, "%c --", side_label);
         } else if (state.level >= 100) {
-            lv_label_set_text_fmt(label, "%c100", side == 0 ? 'L' : 'R');
+            lv_label_set_text_fmt(label, "%c100", side_label);
         } else {
-            lv_label_set_text_fmt(label, "%c %02u", side == 0 ? 'L' : 'R', state.level);
+            lv_label_set_text_fmt(label, "%c %02u", side_label, state.level);
         }
         stop_charge_breathing(charge_icon);
         lv_obj_add_flag(symbol, LV_OBJ_FLAG_HIDDEN);
@@ -196,6 +241,19 @@ static void set_battery_symbol(lv_obj_t *widget, struct battery_state state) {
         return;
     }
 #endif
+
+    /*
+     * UINT8_MAX is the central's disconnect/unknown-level sentinel for a split
+     * peripheral. In icon/percentage mode, hide that peripheral rather than
+     * displaying a bogus 255% battery.
+     */
+    if (!is_dongle && state.level == UINT8_MAX) {
+        stop_charge_breathing(charge_icon);
+        lv_obj_add_flag(symbol, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(charge_icon, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
 
     /*
      * With no battery attached, the dongle ADC can report an empty value while
@@ -260,9 +318,15 @@ void battery_status_update_cb(struct battery_state state) {
 
 static struct battery_state peripheral_battery_status_get_state(const zmk_event_t *eh) {
     const struct zmk_peripheral_battery_state_changed *ev = as_zmk_peripheral_battery_state_changed(eh);
-    uint8_t source = ev->source + SOURCE_OFFSET;
+    uint8_t source;
+    enum battery_side side;
+    if (!peripheral_battery_source_resolve(ev->source, &source, &side)) {
+        LOG_WRN("Ignoring battery event with invalid peripheral source %u", ev->source);
+        return (struct battery_state){.source = UINT8_MAX, .side = BATTERY_SIDE_UNKNOWN};
+    }
     return (struct battery_state){
         .source = source,
+        .side = side,
         .level = ev->state_of_charge,
         .charging = cached_charging[source],
         .present = true,
@@ -272,9 +336,15 @@ static struct battery_state peripheral_battery_status_get_state(const zmk_event_
 static struct battery_state peripheral_charge_status_get_state(const zmk_event_t *eh) {
     const struct zmk_peripheral_charge_state_changed *ev =
         as_zmk_peripheral_charge_state_changed(eh);
-    uint8_t source = ev->source + SOURCE_OFFSET;
+    uint16_t source_wide = (uint16_t)ev->source + SOURCE_OFFSET;
+    if (source_wide >= ARRAY_SIZE(cached_levels)) {
+        LOG_WRN("Ignoring charge event with invalid peripheral source %u", ev->source);
+        return (struct battery_state){.source = UINT8_MAX, .side = BATTERY_SIDE_UNKNOWN};
+    }
+    uint8_t source = (uint8_t)source_wide;
     return (struct battery_state){
         .source = source,
+        .side = BATTERY_SIDE_UNKNOWN,
         .level = cached_levels[source],
         .charging = ev->charging,
         .present = true,
@@ -302,6 +372,7 @@ static struct battery_state central_battery_status_get_state(const zmk_event_t *
 
     return (struct battery_state) {
         .source = 0,
+        .side = BATTERY_SIDE_UNKNOWN,
         .level = level,
         .usb_present = usb_present,
         .present = dongle_battery_seen,
@@ -374,7 +445,7 @@ int zmk_widget_dongle_battery_status_init(struct zmk_widget_dongle_battery_statu
             lv_obj_set_pos(image_canvas, 70, y);
             lv_obj_set_pos(charge_canvas, 70, y);
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_SIDE_BATTERY_TEXT)
-            lv_label_set_text_fmt(battery_label, "%c 00", peripheral_index == 0 ? 'L' : 'R');
+            lv_label_set_text_fmt(battery_label, "%c --", peripheral_index == 0 ? 'L' : 'R');
             lv_obj_clear_flag(battery_label, LV_OBJ_FLAG_HIDDEN);
 #endif
         }
