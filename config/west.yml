@@ -1,16 +1,20 @@
 manifest:
   remotes:
-    - name: zmkfirmware
-      url-base: https://github.com/zmkfirmware
+    - name: sukumar
+      url-base: https://github.com/Sukumar002
     - name: englmaxi
       url-base: https://github.com/englmaxi
+
   projects:
+    # This module currently consumes fork-specific split-side and runtime-timeout APIs.
+    # Keep CI aligned with the exact ZMK fork revision used by Chocofi v1.1.0.
     - name: zmk
-      remote: zmkfirmware
-      revision: main
+      remote: sukumar
+      revision: 0e82b8fb198088c9242cad7fb341e83573da65dc
       import: app/west.yml
     - name: zmk-config
       remote: englmaxi
       revision: main
+
   self:
     path: config
