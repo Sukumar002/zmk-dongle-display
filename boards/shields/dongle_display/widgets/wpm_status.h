@@ -18,4 +18,5 @@ struct zmk_widget_wpm_status
 };
 
 int zmk_widget_wpm_status_init(struct zmk_widget_wpm_status *widget, lv_obj_t *parent);
+void zmk_widget_wpm_set_base_enabled(bool enabled);
 lv_obj_t *zmk_widget_wpm_status_obj(struct zmk_widget_wpm_status *widget);

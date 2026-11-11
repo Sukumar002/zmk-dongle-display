@@ -32,7 +32,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #  define ZMK_SPLIT_BLE_PERIPHERAL_COUNT 0
 #endif
 
-#define BUFFER_SIZE LV_CANVAS_BUF_SIZE(5, 8, LV_COLOR_FORMAT_GET_BPP(LV_COLOR_FORMAT_L8), LV_DRAW_BUF_STRIDE_ALIGN)
+#define BUFFER_SIZE LV_CANVAS_BUF_SIZE(7, 8, LV_COLOR_FORMAT_GET_BPP(LV_COLOR_FORMAT_L8), LV_DRAW_BUF_STRIDE_ALIGN)
 
 static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
 
@@ -92,46 +92,36 @@ static void remember_dongle_battery_present(void) {
 }
 
 static void draw_battery(lv_obj_t *canvas, uint8_t level, bool usb_present) {
+    ARG_UNUSED(usb_present);
     lv_canvas_fill_bg(canvas, lv_color_black(), LV_OPA_COVER);
-    
-    lv_layer_t layer;
-    lv_canvas_init_layer(canvas, &layer);
 
-    lv_draw_rect_dsc_t rect_fill_dsc;
-    lv_draw_rect_dsc_init(&rect_fill_dsc);
-    rect_fill_dsc.bg_color = lv_color_white();
+    /*
+     * Draw a dedicated 7x8 battery glyph. Keep it independent from the
+     * keyboard/timeout canvas so battery status can never inherit that icon.
+     */
+    const lv_color_t white = lv_color_white();
 
-    if (usb_present) {
-        rect_fill_dsc.bg_opa = LV_OPA_TRANSP;
-        rect_fill_dsc.border_color = lv_color_white();
-        rect_fill_dsc.border_width = 1;
+    /* Battery cap and outer case. */
+    lv_canvas_set_px(canvas, 3, 0, white, LV_OPA_COVER);
+    for (int x = 1; x <= 5; x++) {
+        lv_canvas_set_px(canvas, x, 1, white, LV_OPA_COVER);
+        lv_canvas_set_px(canvas, x, 7, white, LV_OPA_COVER);
+    }
+    for (int y = 2; y <= 6; y++) {
+        lv_canvas_set_px(canvas, 1, y, white, LV_OPA_COVER);
+        lv_canvas_set_px(canvas, 5, y, white, LV_OPA_COVER);
     }
 
-    lv_canvas_set_px(canvas, 0, 0, lv_color_white(), LV_OPA_COVER);
-    lv_canvas_set_px(canvas, 4, 0, lv_color_white(), LV_OPA_COVER);
-
-    lv_area_t rect_coords;
-    bool rect_draw = true;
-    
-    if (level <= 10 || usb_present) {
-        rect_coords = (lv_area_t){1, 2, 3, 6};
-    } else if (level <= 30) {
-        rect_coords = (lv_area_t){1, 2, 3, 5};
-    } else if (level <= 50) {
-        rect_coords = (lv_area_t){1, 2, 3, 4};
-    } else if (level <= 70) {
-        rect_coords = (lv_area_t){1, 2, 3, 3};
-    } else if (level <= 90) {
-        rect_coords = (lv_area_t){1, 2, 3, 2};
-    } else {
-        rect_draw = false;
+    /* Fill one to five interior rows according to the reported charge. */
+    uint8_t rows = level == 0 ? 0 : (uint8_t)((level + 19) / 20);
+    if (rows > 5) {
+        rows = 5;
     }
-
-    if (rect_draw) {
-        lv_draw_rect(&layer, &rect_fill_dsc, &rect_coords);
+    for (int y = 6; y >= 7 - rows; y--) {
+        for (int x = 2; x <= 4; x++) {
+            lv_canvas_set_px(canvas, x, y, white, LV_OPA_COVER);
+        }
     }
-
-    lv_canvas_finish_layer(canvas, &layer);
 }
 
 static void draw_charge_flash(lv_obj_t *canvas) {
@@ -186,6 +176,26 @@ static void set_battery_symbol(lv_obj_t *widget, struct battery_state state) {
     cached_charging[state.source] = state.charging;
 
     const bool is_dongle = SOURCE_OFFSET && state.source == 0;
+
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_SIDE_BATTERY_TEXT)
+    if (!is_dongle) {
+        uint8_t side = state.source - SOURCE_OFFSET;
+        if (side > 1) return;
+        if (state.level == UINT8_MAX) {
+            lv_label_set_text_fmt(label, "%c --", side == 0 ? 'L' : 'R');
+        } else if (state.level >= 100) {
+            lv_label_set_text_fmt(label, "%c100", side == 0 ? 'L' : 'R');
+        } else {
+            lv_label_set_text_fmt(label, "%c %02u", side == 0 ? 'L' : 'R', state.level);
+        }
+        stop_charge_breathing(charge_icon);
+        lv_obj_add_flag(symbol, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(charge_icon, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(label, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_move_foreground(label);
+        return;
+    }
+#endif
 
     /*
      * With no battery attached, the dongle ADC can report an empty value while
@@ -347,26 +357,34 @@ int zmk_widget_dongle_battery_status_init(struct zmk_widget_dongle_battery_statu
         lv_obj_t *battery_label = lv_label_create(widget->obj);
         lv_obj_t *charge_canvas = lv_canvas_create(widget->obj);
 
-        lv_canvas_set_buffer(image_canvas, battery_image_buffer[i], 5, 8, LV_COLOR_FORMAT_L8);
-        lv_canvas_set_buffer(charge_canvas, charge_image_buffer[i], 5, 8, LV_COLOR_FORMAT_L8);
+        lv_canvas_set_buffer(image_canvas, battery_image_buffer[i], 7, 8, LV_COLOR_FORMAT_L8);
+        lv_canvas_set_buffer(charge_canvas, charge_image_buffer[i], 7, 8, LV_COLOR_FORMAT_L8);
         draw_charge_flash(charge_canvas);
 
         if (SOURCE_OFFSET && i == 0) {
             /* Dongle: centre-side field. */
             lv_obj_set_pos(image_canvas, 0, 4);
             lv_obj_set_pos(charge_canvas, 0, 4);
-            lv_obj_set_pos(battery_label, 8, 2);
+            lv_obj_set_pos(battery_label, 9, 2);
         } else {
             /* Split halves: preserve a stable right-side percentage stack. */
             int peripheral_index = i - SOURCE_OFFSET;
             int y = peripheral_index * 10;
             lv_obj_set_pos(battery_label, 43, y - 1);
-            lv_obj_set_pos(image_canvas, 72, y);
-            lv_obj_set_pos(charge_canvas, 72, y);
+            lv_obj_set_pos(image_canvas, 70, y);
+            lv_obj_set_pos(charge_canvas, 70, y);
+#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_SIDE_BATTERY_TEXT)
+            lv_label_set_text_fmt(battery_label, "%c 00", peripheral_index == 0 ? 'L' : 'R');
+            lv_obj_clear_flag(battery_label, LV_OBJ_FLAG_HIDDEN);
+#endif
         }
 
         lv_obj_add_flag(image_canvas, LV_OBJ_FLAG_HIDDEN);
+#if !IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_SIDE_BATTERY_TEXT)
         lv_obj_add_flag(battery_label, LV_OBJ_FLAG_HIDDEN);
+#else
+        if (SOURCE_OFFSET && i == 0) lv_obj_add_flag(battery_label, LV_OBJ_FLAG_HIDDEN);
+#endif
         lv_obj_add_flag(charge_canvas, LV_OBJ_FLAG_HIDDEN);
 
         battery_objects[i] = (struct battery_object){
