@@ -149,6 +149,7 @@ static void timeout_status_update_cb(struct timeout_state state) {
 
     if (state.feedback == ZMK_RUNTIME_TIMEOUT_FEEDBACK_HIDE) {
         lv_timer_pause(active_widget->hide_timer);
+        set_timeout_overlay_mode(active_widget, false);
         lv_obj_add_flag(active_widget->obj, LV_OBJ_FLAG_HIDDEN);
         return;
     }
