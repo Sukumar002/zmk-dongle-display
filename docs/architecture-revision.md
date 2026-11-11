@@ -98,3 +98,26 @@ Timeout and plug-in screens are exclusive presentation states: they temporarily 
 - Keep the 128x64 implementation as the regression baseline.
 - CI success is not hardware validation.
 - No release is created without explicit authorization.
+
+
+## Additional source audit findings
+
+### Resolution handling
+
+The current `custom_status_screen.c` creates one shared layout regardless of display height. The 128x32 configuration disables selected widgets, but there is no independent 128x32 renderer or layout-selection boundary. The timeout widget itself already uses the active display resolution for its full-screen overlay; that behavior should be retained and shared.
+
+The 128x32 Chocofi config currently enables the optional dongle-battery field as well as the two peripheral battery fields. The compact target layout calls for the two physical halves only; the new 128x32 renderer should not inherit the 128x64 battery widget geometry or its extra central-battery slot.
+
+### Charging telemetry transport
+
+The optional Hana charging adapter is board-specific: it samples GPIO0 pin 17 (XIAO nRF52840 charging status) and emits `ZMK_SPLIT_TRANSPORT_PERIPHERAL_EVENT_TYPE_CHARGE_STATUS_EVENT`. In the pinned ZMK BLE service, `zmk_split_transport_peripheral_bt_report_event()` handles key, sensor, input, and standard battery events, but does not handle `CHARGE_STATUS_EVENT`; it falls through to `-ENOTSUP`. The central event handler has a charge-status case, but the BLE peripheral service currently does not transport this custom event.
+
+Do not treat peripheral charging telemetry as working over BLE until the transport is implemented and tested. Keep the XIAO GPIO adapter outside the generic display model; if retained, make it an optional Hana integration.
+
+### Hana-specific coupling
+
+- `src/hana_base_view.c` and `include/hana_base_view.h` own Cat/Text/WPM base-view state and settings.
+- The shared shield CMake currently compiles `src/hana_base_view.c` directly.
+- `src/hana_charge_status.c` is optional but tied to XIAO GPIO0.17.
+
+The refactor should expose generic display-model/base-view interfaces and keep Hana-specific policy/hardware adapters behind an optional integration boundary. Preserve existing Hana settings keys or provide an explicit migration path; do not silently reset user preferences.
