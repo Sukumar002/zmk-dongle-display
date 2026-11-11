@@ -334,6 +334,15 @@ static struct battery_state peripheral_battery_status_get_state(const zmk_event_
 }
 
 static struct battery_state peripheral_charge_status_get_state(const zmk_event_t *eh) {
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_BLE_CENTRAL_SIDE_IDENTITY)
+    /*
+     * The current split BLE charge-status transport does not carry the
+     * validated physical side ID. Do not associate a connection-slot source
+     * with a left/right battery when side identity is enabled.
+     */
+    ARG_UNUSED(eh);
+    return (struct battery_state){.source = UINT8_MAX, .side = BATTERY_SIDE_UNKNOWN};
+#else
     const struct zmk_peripheral_charge_state_changed *ev =
         as_zmk_peripheral_charge_state_changed(eh);
     uint16_t source_wide = (uint16_t)ev->source + SOURCE_OFFSET;
@@ -349,6 +358,7 @@ static struct battery_state peripheral_charge_status_get_state(const zmk_event_t
         .charging = ev->charging,
         .present = true,
     };
+#endif
 }
 
 static struct battery_state central_battery_status_get_state(const zmk_event_t *eh) {
