@@ -126,3 +126,11 @@ The refactor should expose generic display-model/base-view interfaces and keep H
 ### CI dependency alignment
 
 The module's sample `config/west.yml` originally tracked upstream ZMK `main`, which lacks fork-specific headers used by the module. The architecture branch now pins the same ZMK fork commit as Chocofi v1.1.0 (`0e82b8fb198088c9242cad7fb341e83573da65dc`). This is required for the module's own CI to compile the current runtime-timeout, side-identity, and charging event APIs. The repository `main` manifest remains unchanged.
+
+
+### Existing widget/model coupling to unwind
+
+- `battery_status.c` currently combines ZMK event decoding, source normalization, cached battery state, charging animation, dongle-battery persistence, LVGL canvas drawing, and fixed pixel coordinates. These responsibilities should be split so the model owns normalized battery state and the renderer owns drawing/layout.
+- `custom_status_screen.c` is currently the single screen constructor and contains all widget placement. It should become a small resolution dispatcher; each renderer should own its own composition and geometry.
+- `timeout_status.c` already provides a reusable full-screen timeout surface and keyboard-name banner. Preserve its exclusive overlay/restore behavior while making its sizing resolution-aware through the renderer/model interface.
+- `hana_base_view.c` currently controls widgets directly. Generalize the view-mode state/API while retaining the existing Hana settings namespace and migration behavior for compatibility.
