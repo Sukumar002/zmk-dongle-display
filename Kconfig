@@ -10,6 +10,7 @@ endmenu
 
 config ZMK_DONGLE_DISPLAY_SIDE_BATTERY_TEXT
     bool "Show split battery levels with physical side labels"
+    depends on ZMK_SPLIT_BLE_CENTRAL_SIDE_IDENTITY
     default n
     help
       Display split battery levels as L 00/R 00 using validated side IDs.
