@@ -11,12 +11,13 @@
 
 #include "timeout_status.h"
 
-#define ICON_W 12
-#define ICON_H 8
-#define ICON_BUF_SIZE LV_CANVAS_BUF_SIZE(ICON_W, ICON_H, LV_COLOR_FORMAT_GET_BPP(LV_COLOR_FORMAT_L8), LV_DRAW_BUF_STRIDE_ALIGN)
+#define ICON_W 16
+#define ICON_H 12
+#define ICON_BUF_SIZE LV_CANVAS_BUF_SIZE(ICON_W, ICON_H, LV_COLOR_FORMAT_GET_BPP(LV_COLOR_FORMAT_ARGB8888), LV_DRAW_BUF_STRIDE_ALIGN)
 
-static lv_color_t icon_buf[ICON_BUF_SIZE];
+static uint8_t icon_buf[ICON_BUF_SIZE];
 static struct zmk_widget_timeout_status *active_widget;
+static lv_obj_t *timeout_screen_parent;
 
 static void clear_icon(lv_obj_t *canvas) {
     lv_canvas_fill_bg(canvas, lv_color_black(), LV_OPA_TRANSP);
@@ -47,50 +48,51 @@ static void draw_keyboard_icon(lv_obj_t *canvas) {
     }
 }
 
-static void draw_usb_icon(lv_obj_t *canvas) {
+static void draw_display_icon(lv_obj_t *canvas) {
     clear_icon(canvas);
 
-    /* Landscape USB plug, sized to the original 12x8 timeout icon footprint. */
-    px(canvas, 0, 3);
-    px(canvas, 1, 3);
-    px(canvas, 2, 3);
-    px(canvas, 2, 4);
-    px(canvas, 1, 4);
-    px(canvas, 0, 4);
-
-    for (int x = 3; x <= 9; x++) {
-        px(canvas, x, 1);
-        px(canvas, x, 6);
+    /* Front-facing monitor: screen, neck and stand. */
+    for (int x = 1; x <= 14; x++) {
+        px(canvas, x, 0);
+        px(canvas, x, 7);
     }
-    for (int y = 2; y <= 5; y++) {
-        px(canvas, 3, y);
-        px(canvas, 9, y);
+    for (int y = 1; y <= 6; y++) {
+        px(canvas, 1, y);
+        px(canvas, 14, y);
     }
-
-    px(canvas, 10, 2);
-    px(canvas, 11, 2);
-    px(canvas, 10, 5);
-    px(canvas, 11, 5);
-    px(canvas, 7, 3);
-    px(canvas, 8, 3);
-    px(canvas, 7, 4);
-    px(canvas, 8, 4);
+    for (int x = 7; x <= 8; x++) {
+        px(canvas, x, 8);
+        px(canvas, x, 9);
+    }
+    for (int x = 5; x <= 10; x++) {
+        px(canvas, x, 10);
+        px(canvas, x, 11);
+    }
+    px(canvas, 4, 11);
+    px(canvas, 11, 11);
 }
+
+static void set_timeout_overlay_mode(struct zmk_widget_timeout_status *widget, bool full_screen);
 
 static void hide_timer_cb(lv_timer_t *timer) {
     struct zmk_widget_timeout_status *widget = lv_timer_get_user_data(timer);
+    set_timeout_overlay_mode(widget, false);
     lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
     lv_timer_pause(timer);
 }
 
 static void set_timeout_overlay_mode(struct zmk_widget_timeout_status *widget, bool full_screen) {
-    lv_obj_t *parent = lv_obj_get_parent(widget->obj);
-
     if (full_screen) {
-        lv_obj_set_size(widget->obj, lv_obj_get_width(parent), lv_obj_get_height(parent));
+        /* Use LVGL's top layer so the timeout surface covers every dashboard widget. */
+        lv_obj_set_parent(widget->obj, lv_layer_top());
+        lv_obj_set_size(widget->obj, lv_disp_get_hor_res(NULL), lv_disp_get_ver_res(NULL));
         lv_obj_set_style_bg_color(widget->obj, lv_color_white(), 0);
         lv_obj_set_style_bg_opa(widget->obj, LV_OPA_COVER, 0);
+        lv_obj_set_style_pad_all(widget->obj, 0, 0);
     } else {
+        if (timeout_screen_parent != NULL) {
+            lv_obj_set_parent(widget->obj, timeout_screen_parent);
+        }
         lv_obj_set_size(widget->obj, 112, 14);
         lv_obj_set_style_bg_opa(widget->obj, LV_OPA_TRANSP, 0);
     }
@@ -156,7 +158,7 @@ static void timeout_status_update_cb(struct timeout_state state) {
     /* Runtime timeout feedback keeps its icon; board-name feedback is text-only. */
     lv_obj_clear_flag(active_widget->icon, LV_OBJ_FLAG_HIDDEN);
     if (state.kind == ZMK_RUNTIME_TIMEOUT_DISPLAY) {
-        draw_usb_icon(active_widget->icon);
+        draw_display_icon(active_widget->icon);
     } else {
         draw_keyboard_icon(active_widget->icon);
     }
@@ -189,6 +191,7 @@ ZMK_DISPLAY_WIDGET_LISTENER(widget_timeout_status, struct timeout_state,
 ZMK_SUBSCRIPTION(widget_timeout_status, zmk_runtime_timeout_changed);
 
 int zmk_widget_timeout_status_init(struct zmk_widget_timeout_status *widget, lv_obj_t *parent) {
+    timeout_screen_parent = parent;
     widget->obj = lv_obj_create(parent);
     lv_obj_set_size(widget->obj, 112, 14);
     lv_obj_set_style_bg_opa(widget->obj, LV_OPA_TRANSP, 0);
@@ -196,7 +199,7 @@ int zmk_widget_timeout_status_init(struct zmk_widget_timeout_status *widget, lv_
     lv_obj_align(widget->obj, LV_ALIGN_CENTER, 0, 0);
 
     widget->icon = lv_canvas_create(widget->obj);
-    lv_canvas_set_buffer(widget->icon, icon_buf, ICON_W, ICON_H, LV_COLOR_FORMAT_L8);
+    lv_canvas_set_buffer(widget->icon, icon_buf, ICON_W, ICON_H, LV_COLOR_FORMAT_ARGB8888);
     lv_obj_align(widget->icon, LV_ALIGN_LEFT_MID, 0, 0);
 
     widget->label = lv_label_create(widget->obj);
