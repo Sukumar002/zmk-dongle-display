@@ -20,12 +20,14 @@ static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
 static bool base_text_enabled;
 
 struct layer_status_state {
+    /* Runtime position and stable firmware identity are not interchangeable. */
     uint8_t index;
+    uint8_t layer_id;
     const char *name;
 };
 
-static const char *fallback_layer_name(uint8_t index) {
-    switch (index) {
+static const char *fallback_layer_name(uint8_t layer_id) {
+    switch (layer_id) {
     case 0: return "BASE";
     case 1: return "NUM";
     case 2: return "NAV";
@@ -46,7 +48,7 @@ static void set_layer_text(struct zmk_widget_layer_status *widget,
 
     const char *text = state.name;
     if (text == NULL || text[0] == '\0') {
-        text = fallback_layer_name(state.index);
+        text = fallback_layer_name(state.layer_id);
     }
 
     lv_label_set_text(widget->label, text);
@@ -56,12 +58,19 @@ static void set_layer_text(struct zmk_widget_layer_status *widget,
     lv_obj_move_foreground(widget->obj);
 }
 
-static void refresh_all(void) {
+static struct layer_status_state current_layer_status_state(void) {
     uint8_t index = zmk_keymap_highest_layer_active();
-    struct layer_status_state state = {
+    uint8_t layer_id = zmk_keymap_layer_index_to_id(index);
+
+    return (struct layer_status_state) {
         .index = index,
-        .name = zmk_keymap_layer_name(index),
+        .layer_id = layer_id,
+        .name = zmk_keymap_layer_name(layer_id),
     };
+}
+
+static void refresh_all(void) {
+    struct layer_status_state state = current_layer_status_state();
 
     struct zmk_widget_layer_status *widget;
     SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
@@ -83,12 +92,7 @@ static void layer_status_update_cb(struct layer_status_state state) {
 
 static struct layer_status_state layer_status_get_state(const zmk_event_t *eh) {
     ARG_UNUSED(eh);
-
-    uint8_t index = zmk_keymap_highest_layer_active();
-    return (struct layer_status_state) {
-        .index = index,
-        .name = zmk_keymap_layer_name(index),
-    };
+    return current_layer_status_state();
 }
 
 ZMK_DISPLAY_WIDGET_LISTENER(widget_layer_status, struct layer_status_state,
@@ -116,14 +120,12 @@ int zmk_widget_layer_status_init(struct zmk_widget_layer_status *widget,
     lv_obj_align(widget->label, LV_ALIGN_CENTER, -1, 0);
     lv_obj_align(widget->label_bold, LV_ALIGN_CENTER, 0, 0);
 
-    widget->layer = zmk_keymap_highest_layer_active();
+    struct layer_status_state state = current_layer_status_state();
+    widget->layer = state.index;
 
     sys_slist_append(&widgets, &widget->node);
 
-    set_layer_text(widget, (struct layer_status_state) {
-        .index = widget->layer,
-        .name = zmk_keymap_layer_name(widget->layer),
-    });
+    set_layer_text(widget, state);
 
     widget_layer_status_init();
     return 0;
