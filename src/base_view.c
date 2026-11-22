@@ -6,8 +6,8 @@
 #include <zmk/dongle_display/base_view.h>
 
 #include "../boards/shields/dongle_display/widgets/bongo_cat.h"
-#include "boards/shields/dongle_display/widgets/wpm_status.h"
-#include "boards/shields/dongle_display/widgets/layer_status.h"
+#include "../boards/shields/dongle_display/widgets/wpm_status.h"
+#include "../boards/shields/dongle_display/widgets/layer_status.h"
 
 static uint8_t base_view_mode = ZMK_DONGLE_DISPLAY_BASE_VIEW_CAT;
 
