@@ -5,7 +5,7 @@
 #include <zephyr/settings/settings.h>
 #include <zmk/dongle_display/base_view.h>
 
-#include "boards/shields/dongle_display/widgets/bongo_cat.h"
+#include "../boards/shields/dongle_display/widgets/bongo_cat.h"
 #include "boards/shields/dongle_display/widgets/wpm_status.h"
 #include "boards/shields/dongle_display/widgets/layer_status.h"
 
