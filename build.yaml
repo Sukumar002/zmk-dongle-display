@@ -1,6 +1,14 @@
 ---
 include:
-  # XIAO nRF52840 dongle target: I2C is provided by the xiao_i2c hardware alias.
+  # Verify that the display module remains optional on both MCU targets.
+  - board: xiao_ble//zmk
+    shield: settings_reset
+    artifact-name: no_display_xiao
+  - board: nice_nano//zmk
+    shield: settings_reset
+    artifact-name: no_display_promicro
+
+  # XIAO nRF52840 target: the board exposes xiao_i2c.
   - board: xiao_ble//zmk
     shield: dongle_display_test_xiao_128x32 dongle_display
     artifact-name: display_xiao_128x32
@@ -8,7 +16,7 @@ include:
     shield: dongle_display_test_xiao_128x64 dongle_display
     artifact-name: display_xiao_128x64
 
-  # Pro Micro / nice!nano-compatible target: I2C is provided by pro_micro_i2c.
+  # Pro Micro / nice!nano-compatible target: the board exposes pro_micro_i2c.
   - board: nice_nano//zmk
     shield: dongle_display_test_promicro_128x32 dongle_display
     artifact-name: display_promicro_128x32
