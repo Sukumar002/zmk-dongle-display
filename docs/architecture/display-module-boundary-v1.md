@@ -130,3 +130,16 @@ Runtime/model tests:
 The module is portable when the same immutable module revision builds with XIAO nRF52840 and Pro Micro/nice!nano-compatible targets, provided each target supplies the required display and battery capabilities, and when the same module revision serves different board shields without keyboard-specific source changes.
 
 A build that passes compilation but relies on undocumented event-source ordering, hidden GPIO assumptions or stale battery state does not pass.
+
+
+## Known transitional implementation debt
+
+The current branch is not yet a fully board/MCU-neutral display release. These items are explicitly tracked and must be resolved before promotion:
+
+1. The firmware-side identity overlay still renders the fixed labels HANA and CHOCOFI and owns LVGL objects. It must be converted to a generic identity event/model with labels supplied by the consuming board configuration, and the renderer must live with this display module.
+2. The battery widget still contains a nice!nano-specific battery-presence inference. That inference must move to a battery-source capability adapter; the widget must consume explicit presence/validity state.
+3. The optional charging source still polls a XIAO-specific GPIO. It must move to an independently selectable XIAO hardware adapter, not remain part of the display module.
+4. The historical settings namespace hana_base_view is retained solely to preserve existing saved preferences. It is a compatibility key, not an active board dependency; a later settings migration may replace it.
+5. The current build fixtures are compile-only. Their mock matrix and panel nodes prove MCU/renderer compile compatibility, not physical I2C pin wiring or OLED runtime behaviour.
+
+The first integration milestone may preserve these existing adapters behind explicit configuration so current board builds remain functional. It must not be described as fully board/MCU independent until items 1–3 have been separated and the acceptance matrix passes.
