@@ -1,6 +1,10 @@
 name: Build display module
 
-on: [push, pull_request, workflow_dispatch]
+on: [pull_request, workflow_dispatch]
+
+concurrency:
+  group: display-module-build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
