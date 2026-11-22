@@ -7,3 +7,9 @@ config HANA_CHARGE_STATUS
       Enables charging-state detection and transport for Hana peripherals.
 
 endmenu
+
+config ZMK_DONGLE_DISPLAY_SIDE_BATTERY_TEXT
+    bool "Show split battery levels with physical side labels"
+    default n
+    help
+      Display split battery levels as L 00/R 00 using validated side IDs.
