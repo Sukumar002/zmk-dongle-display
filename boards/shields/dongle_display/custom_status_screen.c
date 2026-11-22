@@ -74,14 +74,14 @@ lv_obj_t *zmk_display_status_screen() {
     /* Full-screen opaque timeout overlay; normal status returns when it hides. */
     lv_obj_align(zmk_widget_timeout_status_obj(&timeout_status_widget), LV_ALIGN_TOP_LEFT, 0, 0);
 
-#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_WPM)
+#if !DONGLE_DISPLAY_MINIMAL && IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_WPM)
     zmk_widget_wpm_status_init(&wpm_status_widget, screen);
 #endif
 
-#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_BONGO_CAT)
+#if !DONGLE_DISPLAY_MINIMAL && IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_BONGO_CAT)
     zmk_widget_bongo_cat_init(&bongo_cat_widget, screen);
     lv_obj_align(zmk_widget_bongo_cat_obj(&bongo_cat_widget), LV_ALIGN_BOTTOM_RIGHT, 0, 0);
-#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_WPM)
+#if !DONGLE_DISPLAY_MINIMAL && IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_WPM)
     /*
      * BASE display modes share the same bottom-right visual slot:
      * Cat -> bordered BASE text -> WPM.
@@ -91,7 +91,7 @@ lv_obj_t *zmk_display_status_screen() {
 #endif
 #endif
 
-#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_MODIFIERS)
+#if !DONGLE_DISPLAY_MINIMAL && IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_MODIFIERS)
     zmk_widget_modifiers_init(&modifiers_widget, screen);
     lv_obj_align(zmk_widget_modifiers_obj(&modifiers_widget), LV_ALIGN_BOTTOM_LEFT, 0, 0);
 #if IS_ENABLED(CONFIG_ZMK_HID_INDICATORS)
@@ -100,7 +100,7 @@ lv_obj_t *zmk_display_status_screen() {
 #endif
 #endif
 
-#if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_LAYER)
+#if !DONGLE_DISPLAY_MINIMAL && IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_LAYER)
     zmk_widget_layer_status_init(&layer_status_widget, screen);
     /*
      * BASE uses Bongo Cat + WPM. Every other layer replaces that entire visual
