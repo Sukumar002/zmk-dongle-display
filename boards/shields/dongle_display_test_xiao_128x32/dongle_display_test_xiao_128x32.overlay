@@ -1,6 +1,18 @@
+#include <dt-bindings/zmk/kscan_mock.h>
+
 / {
     chosen {
         zephyr,display = &oled;
+        zmk,kscan = &kscan0;
+    };
+
+    kscan0: kscan {
+        compatible = "zmk,kscan-mock";
+        rows = <1>;
+        columns = <1>;
+        event-period = <1000>;
+        events = <ZMK_MOCK_PRESS(0, 0, 1) ZMK_MOCK_RELEASE(0, 0, 1)>;
+        exit-after;
     };
 };
 
