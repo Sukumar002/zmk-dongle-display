@@ -9,7 +9,7 @@ manifest:
   projects:
     - name: zmk
       remote: sukumar
-      revision: 715c4e84c0dbb036bf3c68ed875efe5c43e7256e
+      revision: 13ca97095c1652e79c6d21f52c45a97f3f653c0f
       import: app/west.yml
     - name: zmk-config
       remote: englmaxi
