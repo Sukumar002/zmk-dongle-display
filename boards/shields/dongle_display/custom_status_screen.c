@@ -14,7 +14,7 @@
 #include "widgets/wpm_status.h"
 #include "widgets/timeout_status.h"
 #include <zmk/universal_dongle_oled_status.h>
-#include <hana_base_view.h>
+#include <zmk/dongle_display/base_view.h>
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
@@ -26,6 +26,7 @@ static struct zmk_widget_timeout_status timeout_status_widget;
 static struct zmk_widget_dongle_battery_status dongle_battery_status_widget;
 #endif
 
+#if !IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_LAYER)
 static struct zmk_widget_layer_status layer_status_widget;
 #endif
@@ -45,6 +46,7 @@ static struct zmk_widget_bongo_cat bongo_cat_widget;
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_WPM)
 static struct zmk_widget_wpm_status wpm_status_widget;
 #endif
+#endif /* !CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32 */
 
 lv_style_t global_style;
 
@@ -72,6 +74,7 @@ lv_obj_t *zmk_display_status_screen() {
     zmk_universal_oled_status_init(screen, zmk_widget_timeout_status_obj(&timeout_status_widget));
 #endif
 
+#if !IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_WPM)
     zmk_widget_wpm_status_init(&wpm_status_widget, screen);
 #endif
@@ -107,13 +110,15 @@ lv_obj_t *zmk_display_status_screen() {
     lv_obj_align(zmk_widget_layer_status_obj(&layer_status_widget), LV_ALIGN_BOTTOM_RIGHT, 0, 0);
 #endif
 
+#endif /* !CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32 */
+
 #if IS_ENABLED(CONFIG_ZMK_BATTERY) && !IS_ENABLED(CONFIG_ZMK_UNIVERSAL_DONGLE_CENTRAL_IDENTITY)
     zmk_widget_dongle_battery_status_init(&dongle_battery_status_widget, screen);
     lv_obj_align(zmk_widget_dongle_battery_status_obj(&dongle_battery_status_widget), LV_ALIGN_TOP_RIGHT, 0, 0);
 #endif
 
     /* Settings may have loaded the saved mode before the widgets existed. */
-    hana_base_view_refresh();
+    zmk_dongle_display_base_view_refresh();
 
     return screen;
 }

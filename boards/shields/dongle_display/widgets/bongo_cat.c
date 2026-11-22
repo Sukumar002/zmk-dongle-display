@@ -18,7 +18,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/wpm.h>
 
 #include "bongo_cat.h"
-#include <hana_base_view.h>
+#include <zmk/dongle_display/base_view.h>
 
 #define SRC(array) (const void **)array, sizeof(array) / sizeof(lv_img_dsc_t *)
 
@@ -139,7 +139,7 @@ struct bongo_cat_wpm_status_state bongo_cat_wpm_status_get_state(const zmk_event
 void bongo_cat_wpm_status_update_cb(struct bongo_cat_wpm_status_state state) {
     struct zmk_widget_bongo_cat *widget;
     SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
-        if (hana_base_view_is_base_layer(zmk_keymap_highest_layer_active()) && base_cat_enabled) {
+        if (zmk_dongle_display_is_base_layer(zmk_keymap_highest_layer_active()) && base_cat_enabled) {
             lv_obj_clear_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
             set_animation(widget->obj, state);
         }
@@ -149,7 +149,7 @@ void bongo_cat_wpm_status_update_cb(struct bongo_cat_wpm_status_state state) {
 static int bongo_cat_layer_listener(const zmk_event_t *eh) {
     ARG_UNUSED(eh);
 
-    const bool base = hana_base_view_is_base_layer(zmk_keymap_highest_layer_active());
+    const bool base = zmk_dongle_display_is_base_layer(zmk_keymap_highest_layer_active());
     struct zmk_widget_bongo_cat *widget;
     SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
         if (base && base_cat_enabled) {
@@ -184,7 +184,7 @@ int zmk_widget_bongo_cat_init(struct zmk_widget_bongo_cat *widget, lv_obj_t *par
 
     sys_slist_append(&widgets, &widget->node);
 
-    if (!base_cat_enabled || !hana_base_view_is_base_layer(zmk_keymap_highest_layer_active())) {
+    if (!base_cat_enabled || !zmk_dongle_display_is_base_layer(zmk_keymap_highest_layer_active())) {
         lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
     }
 
@@ -198,7 +198,7 @@ void zmk_widget_bongo_cat_set_base_enabled(bool enabled) {
 
     struct zmk_widget_bongo_cat *widget;
     SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
-        if (enabled && hana_base_view_is_base_layer(zmk_keymap_highest_layer_active())) {
+        if (enabled && zmk_dongle_display_is_base_layer(zmk_keymap_highest_layer_active())) {
             current_anim_state = anim_state_none;
             lv_obj_clear_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
             set_animation(widget->obj,

@@ -1,5 +1,11 @@
-on: [push, pull_request, workflow_dispatch]
+name: Build display module
+
+on: [pull_request, workflow_dispatch]
+
+concurrency:
+  group: display-module-build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
-    uses: zmkfirmware/zmk/.github/workflows/build-user-config.yml@main
+    uses: Sukumar002/zmk/.github/workflows/build-user-config.yml@0e82b8fb198088c9242cad7fb341e83573da65dc

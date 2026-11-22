@@ -3,27 +3,26 @@
 #include <string.h>
 
 #include <zephyr/settings/settings.h>
-#include <hana_base_view.h>
+#include <zmk/dongle_display/base_view.h>
 
-#include "hana_base_view.h"
 #include "../boards/shields/dongle_display/widgets/bongo_cat.h"
 #include "../boards/shields/dongle_display/widgets/wpm_status.h"
 #include "../boards/shields/dongle_display/widgets/layer_status.h"
 
-static uint8_t base_view_mode = HANA_BASE_VIEW_CAT;
+static uint8_t base_view_mode = ZMK_DONGLE_DISPLAY_BASE_VIEW_CAT;
 
-bool hana_base_view_is_base_layer(uint8_t layer) {
+bool zmk_dongle_display_is_base_layer(uint8_t layer) {
     return layer < CONFIG_ZMK_DONGLE_DISPLAY_BASE_LAYER_COUNT;
 }
 
-enum hana_base_view_mode hana_base_view_get_mode(void) {
-    return (enum hana_base_view_mode)base_view_mode;
+enum zmk_dongle_display_base_view_mode zmk_dongle_display_base_view_get_mode(void) {
+    return (enum zmk_dongle_display_base_view_mode)base_view_mode;
 }
 
 static void apply_base_view(void) {
-    bool cat = base_view_mode == HANA_BASE_VIEW_CAT;
-    bool text = base_view_mode == HANA_BASE_VIEW_TEXT;
-    bool wpm = base_view_mode == HANA_BASE_VIEW_WPM;
+    bool cat = base_view_mode == ZMK_DONGLE_DISPLAY_BASE_VIEW_CAT;
+    bool text = base_view_mode == ZMK_DONGLE_DISPLAY_BASE_VIEW_TEXT;
+    bool wpm = base_view_mode == ZMK_DONGLE_DISPLAY_BASE_VIEW_WPM;
 
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_BONGO_CAT)
     zmk_widget_bongo_cat_set_base_enabled(cat);
@@ -44,14 +43,15 @@ static void apply_base_view(void) {
 #endif
 }
 
-void hana_base_view_refresh(void) {
+void zmk_dongle_display_base_view_refresh(void) {
     apply_base_view();
 }
 
-void hana_base_view_cycle(void) {
-    base_view_mode = (base_view_mode + 1) % HANA_BASE_VIEW_MODE_COUNT;
+void zmk_dongle_display_base_view_cycle(void) {
+    base_view_mode = (base_view_mode + 1) % ZMK_DONGLE_DISPLAY_BASE_VIEW_MODE_COUNT;
 
 #if IS_ENABLED(CONFIG_SETTINGS)
+    /* Keep the historical settings subtree so existing user preferences survive migration. */
     settings_save_one("hana_base_view/mode3", &base_view_mode, sizeof(base_view_mode));
 #endif
 
@@ -73,7 +73,7 @@ static int base_view_settings_set(const char *name, size_t len,
             return rc;
         }
 
-        if (mode >= HANA_BASE_VIEW_MODE_COUNT) {
+        if (mode >= ZMK_DONGLE_DISPLAY_BASE_VIEW_MODE_COUNT) {
             return -EINVAL;
         }
 
@@ -83,7 +83,7 @@ static int base_view_settings_set(const char *name, size_t len,
     }
 
     /*
-     * Migrate the previous four-state prototype:
+     * Legacy settings migration:
      * 0 Cat+WPM -> Cat
      * 1 Text+WPM -> Text
      * 2 Cat only -> Cat
@@ -104,14 +104,14 @@ static int base_view_settings_set(const char *name, size_t len,
         switch (old_mode) {
         case 0:
         case 2:
-            base_view_mode = HANA_BASE_VIEW_CAT;
+            base_view_mode = ZMK_DONGLE_DISPLAY_BASE_VIEW_CAT;
             break;
         case 1:
         case 3:
-            base_view_mode = HANA_BASE_VIEW_TEXT;
+            base_view_mode = ZMK_DONGLE_DISPLAY_BASE_VIEW_TEXT;
             break;
         default:
-            base_view_mode = HANA_BASE_VIEW_CAT;
+            base_view_mode = ZMK_DONGLE_DISPLAY_BASE_VIEW_CAT;
             break;
         }
 
@@ -131,7 +131,8 @@ static int base_view_settings_set(const char *name, size_t len,
             return rc;
         }
 
-        base_view_mode = old_cat ? HANA_BASE_VIEW_CAT : HANA_BASE_VIEW_TEXT;
+        base_view_mode = old_cat ? ZMK_DONGLE_DISPLAY_BASE_VIEW_CAT
+                                 : ZMK_DONGLE_DISPLAY_BASE_VIEW_TEXT;
         apply_base_view();
         return 0;
     }
@@ -139,6 +140,6 @@ static int base_view_settings_set(const char *name, size_t len,
     return -ENOENT;
 }
 
-SETTINGS_STATIC_HANDLER_DEFINE(hana_base_view, "hana_base_view", NULL,
+SETTINGS_STATIC_HANDLER_DEFINE(dongle_display_base_view, "hana_base_view", NULL,
                                base_view_settings_set, NULL, NULL);
 #endif

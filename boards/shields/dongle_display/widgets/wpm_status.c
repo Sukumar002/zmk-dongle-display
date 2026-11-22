@@ -10,7 +10,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/keymap.h>
 
 #include "wpm_status.h"
-#include <hana_base_view.h>
+#include <zmk/dongle_display/base_view.h>
 
 static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
 static bool base_wpm_enabled = true;
@@ -38,7 +38,7 @@ static void set_wpm(struct zmk_widget_wpm_status *widget,
      * in addition to the layer listener so a late WPM event cannot make the
      * widget visible on NUM/NAV/SET/MOUSE.
      */
-    if (!hana_base_view_is_base_layer(zmk_keymap_highest_layer_active()) || !base_wpm_enabled) {
+    if (!zmk_dongle_display_is_base_layer(zmk_keymap_highest_layer_active()) || !base_wpm_enabled) {
         lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
         return;
     }
@@ -69,7 +69,7 @@ static void wpm_status_update_cb(struct wpm_status_state state) {
 static int wpm_layer_listener(const zmk_event_t *eh) {
     ARG_UNUSED(eh);
 
-    const bool base = hana_base_view_is_base_layer(zmk_keymap_highest_layer_active());
+    const bool base = zmk_dongle_display_is_base_layer(zmk_keymap_highest_layer_active());
 
     struct zmk_widget_wpm_status *widget;
     SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
@@ -110,7 +110,7 @@ int zmk_widget_wpm_status_init(struct zmk_widget_wpm_status *widget,
     lv_obj_align(widget->wpm_label, LV_ALIGN_RIGHT_MID, -3, 0);
     lv_label_set_text(widget->wpm_label, "0");
 
-    if (!hana_base_view_is_base_layer(zmk_keymap_highest_layer_active()) || !base_wpm_enabled) {
+    if (!zmk_dongle_display_is_base_layer(zmk_keymap_highest_layer_active()) || !base_wpm_enabled) {
         lv_obj_add_flag(widget->obj, LV_OBJ_FLAG_HIDDEN);
     }
 
@@ -125,7 +125,7 @@ void zmk_widget_wpm_set_base_enabled(bool enabled) {
 
     struct zmk_widget_wpm_status *widget;
     SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
-        if (enabled && hana_base_view_is_base_layer(zmk_keymap_highest_layer_active())) {
+        if (enabled && zmk_dongle_display_is_base_layer(zmk_keymap_highest_layer_active())) {
             char wpm_text[8];
             snprintf(wpm_text, sizeof(wpm_text), "%d", last_wpm);
             lv_label_set_text(widget->wpm_label, wpm_text);
