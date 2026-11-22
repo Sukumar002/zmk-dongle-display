@@ -26,6 +26,7 @@ static struct zmk_widget_timeout_status timeout_status_widget;
 static struct zmk_widget_dongle_battery_status dongle_battery_status_widget;
 #endif
 
+#if !IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32)
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_LAYER)
 static struct zmk_widget_layer_status layer_status_widget;
 #endif
@@ -45,6 +46,7 @@ static struct zmk_widget_bongo_cat bongo_cat_widget;
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_WPM)
 static struct zmk_widget_wpm_status wpm_status_widget;
 #endif
+#endif /* !CONFIG_ZMK_DONGLE_DISPLAY_COMPACT_128X32 */
 
 lv_style_t global_style;
 
