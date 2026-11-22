@@ -16,6 +16,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/ble.h>
 #include <zmk/display.h>
 #include <zmk/events/battery_state_changed.h>
+#include <zmk/events/dongle_peripheral_identity_changed.h>
 #include <zmk/events/usb_conn_state_changed.h>
 #include <zmk/event_manager.h>
 #include <zmk/usb.h>
@@ -55,6 +56,33 @@ static lv_color_t charge_image_buffer[ZMK_SPLIT_BLE_PERIPHERAL_COUNT + SOURCE_OF
 
 static uint8_t cached_levels[ZMK_SPLIT_BLE_PERIPHERAL_COUNT + SOURCE_OFFSET];
 static bool cached_charging[ZMK_SPLIT_BLE_PERIPHERAL_COUNT + SOURCE_OFFSET];
+
+#define PERIPHERAL_CACHE_COUNT MAX(1, ZMK_SPLIT_BLE_PERIPHERAL_COUNT)
+
+static struct battery_state cached_peripheral_states[PERIPHERAL_CACHE_COUNT];
+static bool cached_peripheral_state_valid[PERIPHERAL_CACHE_COUNT];
+static enum zmk_split_peripheral_side peripheral_sides[PERIPHERAL_CACHE_COUNT];
+static bool peripheral_side_valid[PERIPHERAL_CACHE_COUNT];
+
+/*
+ * Battery events are indexed by BLE connection slot. The display, however,
+ * has fixed physical LEFT and RIGHT rows. Prefer the reported physical side;
+ * retain connection-slot ordering for legacy peripherals with no identity.
+ */
+static uint8_t peripheral_display_source(uint8_t source) {
+    uint8_t display_slot = source;
+
+    if (source < ZMK_SPLIT_BLE_PERIPHERAL_COUNT &&
+        ZMK_SPLIT_BLE_PERIPHERAL_COUNT > 1 && peripheral_side_valid[source]) {
+        if (peripheral_sides[source] == ZMK_SPLIT_PERIPHERAL_SIDE_LEFT) {
+            display_slot = 0;
+        } else if (peripheral_sides[source] == ZMK_SPLIT_PERIPHERAL_SIDE_RIGHT) {
+            display_slot = 1;
+        }
+    }
+
+    return display_slot + SOURCE_OFFSET;
+}
 
 /*
  * The nice!nano V2 battery source is VDDH, which also sees USB power.
@@ -250,13 +278,20 @@ void battery_status_update_cb(struct battery_state state) {
 
 static struct battery_state peripheral_battery_status_get_state(const zmk_event_t *eh) {
     const struct zmk_peripheral_battery_state_changed *ev = as_zmk_peripheral_battery_state_changed(eh);
-    uint8_t source = ev->source + SOURCE_OFFSET;
-    return (struct battery_state){
-        .source = source,
+    const uint8_t source = ev->source;
+    struct battery_state state = {
+        .source = peripheral_display_source(source),
         .level = ev->state_of_charge,
         .charging = false,
         .present = true,
     };
+
+    if (source < ZMK_SPLIT_BLE_PERIPHERAL_COUNT) {
+        cached_peripheral_states[source] = state;
+        cached_peripheral_state_valid[source] = true;
+    }
+
+    return state;
 }
 
 static struct battery_state central_battery_status_get_state(const zmk_event_t *eh) {
@@ -303,6 +338,48 @@ ZMK_DISPLAY_WIDGET_LISTENER(widget_dongle_battery_status, struct battery_state,
                             battery_status_update_cb, battery_status_get_state)
 
 ZMK_SUBSCRIPTION(widget_dongle_battery_status, zmk_peripheral_battery_state_changed);
+
+static int dongle_peripheral_identity_listener_cb(const zmk_event_t *eh) {
+    const struct zmk_dongle_peripheral_identity_changed *ev =
+        as_zmk_dongle_peripheral_identity_changed(eh);
+
+    if (!ev || ev->source >= ZMK_SPLIT_BLE_PERIPHERAL_COUNT) {
+        return ZMK_EV_EVENT_BUBBLE;
+    }
+
+    const uint8_t source = ev->source;
+
+    if (!ev->connected) {
+        if (cached_peripheral_state_valid[source]) {
+            struct battery_state state = cached_peripheral_states[source];
+            state.source = peripheral_display_source(source);
+            state.level = 0;
+            battery_status_update_cb(state);
+        }
+
+        cached_peripheral_state_valid[source] = false;
+        peripheral_side_valid[source] = false;
+        peripheral_sides[source] = ZMK_SPLIT_PERIPHERAL_SIDE_UNKNOWN;
+        return ZMK_EV_EVENT_BUBBLE;
+    }
+
+    peripheral_side_valid[source] = ev->identity_valid;
+    peripheral_sides[source] = ev->identity_valid
+                                   ? ev->side
+                                   : ZMK_SPLIT_PERIPHERAL_SIDE_UNKNOWN;
+
+    if (cached_peripheral_state_valid[source]) {
+        struct battery_state state = cached_peripheral_states[source];
+        state.source = peripheral_display_source(source);
+        cached_peripheral_states[source] = state;
+        battery_status_update_cb(state);
+    }
+
+    return ZMK_EV_EVENT_BUBBLE;
+}
+
+ZMK_LISTENER(dongle_battery_peripheral_identity, dongle_peripheral_identity_listener_cb);
+ZMK_SUBSCRIPTION(dongle_battery_peripheral_identity, zmk_dongle_peripheral_identity_changed);
 
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_DONGLE_BATTERY)
 #if !IS_ENABLED(CONFIG_ZMK_SPLIT) || IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
