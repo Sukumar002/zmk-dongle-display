@@ -22,6 +22,13 @@ config ZMK_DONGLE_DISPLAY_DONGLE_BATTERY
     bool "Show also the battery level of the dongle"
     depends on BT && (!ZMK_SPLIT_BLE || ZMK_SPLIT_ROLE_CENTRAL)
 
+config ZMK_DONGLE_DISPLAY_COMPACT_128X32
+    bool "Use compact layout for 128x32 panels"
+    default n
+    help
+        Show only connection, identity, battery and temporary feedback widgets.
+        Hide the 64-pixel dashboard widgets on compact 128x32 panels.
+
 config ZMK_DONGLE_DISPLAY_MAC_MODIFIERS
     bool "Use MacOS modifier symbols instead of the Windows symbols"
 
