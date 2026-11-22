@@ -14,7 +14,7 @@
 #include "widgets/wpm_status.h"
 #include "widgets/timeout_status.h"
 #include <zmk/universal_dongle_oled_status.h>
-#include <hana_base_view.h>
+#include <zmk/dongle_display/base_view.h>
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
@@ -113,7 +113,7 @@ lv_obj_t *zmk_display_status_screen() {
 #endif
 
     /* Settings may have loaded the saved mode before the widgets existed. */
-    hana_base_view_refresh();
+    zmk_dongle_display_base_view_refresh();
 
     return screen;
 }
