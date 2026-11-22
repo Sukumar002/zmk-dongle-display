@@ -254,19 +254,7 @@ static struct battery_state peripheral_battery_status_get_state(const zmk_event_
     return (struct battery_state){
         .source = source,
         .level = ev->state_of_charge,
-        .charging = cached_charging[source],
-        .present = true,
-    };
-}
-
-static struct battery_state peripheral_charge_status_get_state(const zmk_event_t *eh) {
-    const struct zmk_peripheral_charge_state_changed *ev =
-        as_zmk_peripheral_charge_state_changed(eh);
-    uint8_t source = ev->source + SOURCE_OFFSET;
-    return (struct battery_state){
-        .source = source,
-        .level = cached_levels[source],
-        .charging = ev->charging,
+        .charging = false,
         .present = true,
     };
 }
@@ -306,8 +294,6 @@ static struct battery_state central_battery_status_get_state(const zmk_event_t *
 static struct battery_state battery_status_get_state(const zmk_event_t *eh) {
     if (as_zmk_peripheral_battery_state_changed(eh) != NULL) {
         return peripheral_battery_status_get_state(eh);
-    } else if (as_zmk_peripheral_charge_state_changed(eh) != NULL) {
-        return peripheral_charge_status_get_state(eh);
     } else {
         return central_battery_status_get_state(eh);
     }
@@ -317,7 +303,6 @@ ZMK_DISPLAY_WIDGET_LISTENER(widget_dongle_battery_status, struct battery_state,
                             battery_status_update_cb, battery_status_get_state)
 
 ZMK_SUBSCRIPTION(widget_dongle_battery_status, zmk_peripheral_battery_state_changed);
-ZMK_SUBSCRIPTION(widget_dongle_battery_status, zmk_peripheral_charge_state_changed);
 
 #if IS_ENABLED(CONFIG_ZMK_DONGLE_DISPLAY_DONGLE_BATTERY)
 #if !IS_ENABLED(CONFIG_ZMK_SPLIT) || IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
