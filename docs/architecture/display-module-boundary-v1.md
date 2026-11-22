@@ -145,3 +145,10 @@ The current branch is not yet a fully board/MCU-neutral display release. These i
 The first integration milestone may preserve these existing adapters behind explicit configuration so current board builds remain functional. It must not be described as fully board/MCU independent until items 1–3 have been separated and the acceptance matrix passes.
 
 6. The firmware declares a split CHARGE_STATUS_EVENT, but the inspected BLE split service currently handles key/input/sensor/battery events without forwarding this charge-status event to the central. Peripheral charging icons therefore cannot be claimed as functional yet. Add a side-aware charge-status characteristic/notification (or equivalent transport) and validate disconnect/reconnect state before enabling the UI path.
+
+
+## Current validation status
+
+The isolated module build workflow passed all six compile targets: no-display, 128x32 and 128x64 on both xiao_ble and nice_nano board targets. The 128x32 targets compile with the compact layout option; 128x64 targets compile with the full dashboard. The test shields use each board's declared I2C alias and a mock kscan matrix.
+
+This validates compilation and optional-module composition only. It does not validate panel wiring, OLED readability, charging hardware, battery accuracy or BLE runtime transitions.
