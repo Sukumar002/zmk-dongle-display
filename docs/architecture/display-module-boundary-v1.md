@@ -143,3 +143,5 @@ The current branch is not yet a fully board/MCU-neutral display release. These i
 5. The current build fixtures are compile-only. Their mock matrix and panel nodes prove MCU/renderer compile compatibility, not physical I2C pin wiring or OLED runtime behaviour.
 
 The first integration milestone may preserve these existing adapters behind explicit configuration so current board builds remain functional. It must not be described as fully board/MCU independent until items 1–3 have been separated and the acceptance matrix passes.
+
+6. The firmware declares a split CHARGE_STATUS_EVENT, but the inspected BLE split service currently handles key/input/sensor/battery events without forwarding this charge-status event to the central. Peripheral charging icons therefore cannot be claimed as functional yet. Add a side-aware charge-status characteristic/notification (or equivalent transport) and validate disconnect/reconnect state before enabling the UI path.
