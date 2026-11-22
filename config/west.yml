@@ -6,7 +6,7 @@ manifest:
   projects:
     - name: zmk
       remote: sukumar
-      revision: 086d19bfe647e05d16ad5bf445b91e499d32d5a3
+      revision: 7e05bf9846900e6eafd7b4665ac5240dcaca7b39
       import: app/west.yml
 
   self:
