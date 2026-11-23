@@ -13,6 +13,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/display.h>
 #include <zmk/event_manager.h>
 #include <zmk/events/hid_indicators_changed.h>
+#include <zmk/events/position_state_changed.h>
 #include <zmk/hid.h>
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
@@ -23,10 +24,10 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #define LED_CLCK 0x02
 #define LED_SLCK 0x04
 
-#if DT_NODE_EXISTS(DT_NODELABEL(layout_shift_map_gui_alt))
+#if DT_NODE_EXISTS(DT_NODELABEL(layout_shift_map_gui_alt_shared))
 #define HANA_HAS_GUI_ALT_LAYOUT_SHIFT 1
 static const struct device *const hana_gui_alt_layout_shift =
-    DEVICE_DT_GET(DT_NODELABEL(layout_shift_map_gui_alt));
+    DEVICE_DT_GET(DT_NODELABEL(layout_shift_map_gui_alt_shared));
 
 struct hana_layout_shift_map_data_view {
     zmk_mod_flags_t modifier_map[8];
@@ -52,6 +53,8 @@ struct hid_indicators_state {
 };
 
 static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
+static uint8_t latest_hid_indicators;
+static struct k_work_delayable layout_shift_refresh_work;
 
 static void set_hid_indicators(lv_obj_t *label, struct hid_indicators_state state) {
     char text[7] = {};
@@ -81,8 +84,11 @@ static void set_hid_indicators(lv_obj_t *label, struct hid_indicators_state stat
 }
 
 void hid_indicators_update_cb(struct hid_indicators_state state) {
+    latest_hid_indicators = state.hid_indicators;
     struct zmk_widget_hid_indicators *widget;
-    SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) { set_hid_indicators(widget->obj, state); }
+    SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
+        set_hid_indicators(widget->obj, state);
+    }
 }
 
 static struct hid_indicators_state hid_indicators_get_state(const zmk_event_t *eh) {
@@ -97,6 +103,28 @@ static struct hid_indicators_state hid_indicators_get_state(const zmk_event_t *e
     };
 }
 
+static void layout_shift_refresh_work_handler(struct k_work *work) {
+    ARG_UNUSED(work);
+    struct hid_indicators_state state = {
+        .hid_indicators = latest_hid_indicators,
+#if HANA_HAS_GUI_ALT_LAYOUT_SHIFT
+        .windows_mode = hana_layout_shift_windows_mode(),
+#else
+        .windows_mode = false,
+#endif
+    };
+    hid_indicators_update_cb(state);
+}
+
+static int layout_shift_refresh_listener_cb(const zmk_event_t *eh) {
+    ARG_UNUSED(eh);
+    k_work_reschedule(&layout_shift_refresh_work, K_MSEC(10));
+    return ZMK_EV_EVENT_BUBBLE;
+}
+
+ZMK_LISTENER(widget_hid_indicators_layout_shift_refresh, layout_shift_refresh_listener_cb);
+ZMK_SUBSCRIPTION(widget_hid_indicators_layout_shift_refresh, zmk_position_state_changed);
+
 ZMK_DISPLAY_WIDGET_LISTENER(widget_hid_indicators, struct hid_indicators_state,
                             hid_indicators_update_cb, hid_indicators_get_state)
 
@@ -104,11 +132,9 @@ ZMK_SUBSCRIPTION(widget_hid_indicators, zmk_hid_indicators_changed);
 
 int zmk_widget_hid_indicators_init(struct zmk_widget_hid_indicators *widget, lv_obj_t *parent) {
     widget->obj = lv_label_create(parent);
-
+    k_work_init_delayable(&layout_shift_refresh_work, layout_shift_refresh_work_handler);
     sys_slist_append(&widgets, &widget->node);
-
     widget_hid_indicators_init();
-
     return 0;
 }
 
