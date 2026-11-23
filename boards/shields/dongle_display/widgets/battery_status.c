@@ -342,7 +342,7 @@ static struct battery_state peripheral_battery_status_get_state(const zmk_event_
     struct battery_state state = {
         .source = peripheral_display_source(source),
         .level = ev->state_of_charge,
-        .charging = false,
+        .charging = ev->charging,
         .present = true,
     };
 
