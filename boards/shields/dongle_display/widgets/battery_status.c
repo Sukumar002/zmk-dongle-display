@@ -65,23 +65,25 @@ static enum zmk_split_peripheral_side peripheral_sides[PERIPHERAL_CACHE_COUNT];
 static bool peripheral_side_valid[PERIPHERAL_CACHE_COUNT];
 
 /*
- * Battery events are indexed by BLE connection slot. The display, however,
- * has fixed physical LEFT and RIGHT rows. Prefer the reported physical side;
- * retain connection-slot ordering for legacy peripherals with no identity.
+ * Battery events are indexed by BLE connection slot. The display has fixed
+ * physical LEFT and RIGHT rows, so never infer physical identity from the
+ * order in which peripherals happen to connect.
  */
 static uint8_t peripheral_display_source(uint8_t source) {
-    uint8_t display_slot = source;
-
-    if (source < ZMK_SPLIT_BLE_PERIPHERAL_COUNT &&
-        ZMK_SPLIT_BLE_PERIPHERAL_COUNT > 1 && peripheral_side_valid[source]) {
-        if (peripheral_sides[source] == ZMK_SPLIT_PERIPHERAL_SIDE_LEFT) {
-            display_slot = 0;
-        } else if (peripheral_sides[source] == ZMK_SPLIT_PERIPHERAL_SIDE_RIGHT) {
-            display_slot = 1;
-        }
+    if (source >= ZMK_SPLIT_BLE_PERIPHERAL_COUNT ||
+        !peripheral_side_valid[source]) {
+        return UINT8_MAX;
     }
 
-    return display_slot + SOURCE_OFFSET;
+    if (peripheral_sides[source] == ZMK_SPLIT_PERIPHERAL_SIDE_LEFT) {
+        return SOURCE_OFFSET;
+    }
+
+    if (peripheral_sides[source] == ZMK_SPLIT_PERIPHERAL_SIDE_RIGHT) {
+        return SOURCE_OFFSET + 1;
+    }
+
+    return UINT8_MAX;
 }
 
 /*
@@ -214,6 +216,29 @@ static void set_battery_symbol(lv_obj_t *widget, struct battery_state state) {
     cached_charging[state.source] = state.charging;
 
     const bool is_dongle = SOURCE_OFFSET && state.source == 0;
+
+    /*
+     * Split halves use fixed physical-side text labels. No battery glyph or
+     * percentage sign is shown; a disconnected side remains visible as "--".
+     */
+    if (!is_dongle) {
+        const uint8_t side_slot = state.source - SOURCE_OFFSET;
+        const char *side = side_slot == 0 ? "L" : "R";
+
+        stop_charge_breathing(charge_icon);
+        lv_obj_add_flag(symbol, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(charge_icon, LV_OBJ_FLAG_HIDDEN);
+
+        if (state.present) {
+            lv_label_set_text_fmt(label, "%s%03u", side, MIN(state.level, 100));
+        } else {
+            lv_label_set_text_fmt(label, "%s --", side);
+        }
+
+        lv_obj_clear_flag(label, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_move_foreground(label);
+        return;
+    }
 
     /*
      * With no battery attached, the dongle ADC can report an empty value while
@@ -350,10 +375,22 @@ static int dongle_peripheral_identity_listener_cb(const zmk_event_t *eh) {
     const uint8_t source = ev->source;
 
     if (!ev->connected) {
-        if (cached_peripheral_state_valid[source]) {
-            struct battery_state state = cached_peripheral_states[source];
-            state.source = peripheral_display_source(source);
-            state.level = 0;
+        /*
+         * The disconnect event carries the last known physical identity.
+         * Render the disconnected placeholder before clearing that mapping.
+         */
+        peripheral_side_valid[source] = ev->identity_valid;
+        peripheral_sides[source] = ev->identity_valid
+                                       ? ev->side
+                                       : ZMK_SPLIT_PERIPHERAL_SIDE_UNKNOWN;
+
+        if (ev->identity_valid) {
+            struct battery_state state = {
+                .source = peripheral_display_source(source),
+                .level = 0,
+                .charging = false,
+                .present = false,
+            };
             battery_status_update_cb(state);
         }
 
@@ -428,8 +465,16 @@ int zmk_widget_dongle_battery_status_init(struct zmk_widget_dongle_battery_statu
         }
 
         lv_obj_add_flag(image_canvas, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(battery_label, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(charge_canvas, LV_OBJ_FLAG_HIDDEN);
+
+        if (!(SOURCE_OFFSET && i == 0)) {
+            int peripheral_index = i - SOURCE_OFFSET;
+            const char *side = peripheral_index == 0 ? "L" : "R";
+            lv_label_set_text_fmt(battery_label, "%s --", side);
+            lv_obj_clear_flag(battery_label, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(battery_label, LV_OBJ_FLAG_HIDDEN);
+        }
 
         battery_objects[i] = (struct battery_object){
             .symbol = image_canvas,
