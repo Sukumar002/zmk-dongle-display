@@ -202,7 +202,7 @@ static void layout_shift_refresh_work_handler(struct k_work *work) {
 
 static int layout_shift_refresh_listener_cb(const zmk_event_t *eh) {
     ARG_UNUSED(eh);
-    k_work_reschedule(&layout_shift_refresh_work, K_MSEC(10));
+    k_work_reschedule_for_queue(zmk_display_work_q(), &layout_shift_refresh_work, K_MSEC(10));
     return ZMK_EV_EVENT_BUBBLE;
 }
 
