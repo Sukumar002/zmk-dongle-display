@@ -47,6 +47,7 @@ struct battery_state {
 
 struct battery_object {
     lv_obj_t *symbol;
+    lv_obj_t *side_label;
     lv_obj_t *label;
     lv_obj_t *charge_icon;
 } battery_objects[ZMK_SPLIT_BLE_PERIPHERAL_COUNT + SOURCE_OFFSET];
@@ -232,6 +233,7 @@ static void set_battery_symbol(lv_obj_t *widget, struct battery_state state) {
 
     LOG_DBG("source: %d, level: %d, usb: %d", state.source, state.level, state.usb_present);
     lv_obj_t *symbol = battery_objects[state.source].symbol;
+    lv_obj_t *side_label = battery_objects[state.source].side_label;
     lv_obj_t *label = battery_objects[state.source].label;
     lv_obj_t *charge_icon = battery_objects[state.source].charge_icon;
 
@@ -251,20 +253,23 @@ static void set_battery_symbol(lv_obj_t *widget, struct battery_state state) {
         stop_charge_breathing(charge_icon);
         lv_obj_add_flag(symbol, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(charge_icon, LV_OBJ_FLAG_HIDDEN);
+        lv_label_set_text(side_label, side);
 
         if (state.present) {
-            lv_label_set_text_fmt(label, "%s%3u", side, MIN(state.level, 100));
+            lv_label_set_text_fmt(label, "%3u", MIN(state.level, 100));
             if (state.charging) {
-                start_side_label_breathing(label);
+                start_side_label_breathing(side_label);
             } else {
-                stop_side_label_breathing(label);
+                stop_side_label_breathing(side_label);
             }
         } else {
-            stop_side_label_breathing(label);
-            lv_label_set_text_fmt(label, "%s --", side);
+            stop_side_label_breathing(side_label);
+            lv_label_set_text(label, " --");
         }
 
+        lv_obj_clear_flag(side_label, LV_OBJ_FLAG_HIDDEN);
         lv_obj_clear_flag(label, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_move_foreground(side_label);
         lv_obj_move_foreground(label);
         return;
     }
@@ -277,6 +282,7 @@ static void set_battery_symbol(lv_obj_t *widget, struct battery_state state) {
     if (is_dongle && !state.present) {
         stop_charge_breathing(charge_icon);
         lv_obj_add_flag(symbol, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(side_label, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(charge_icon, LV_OBJ_FLAG_HIDDEN);
         return;
@@ -472,6 +478,7 @@ int zmk_widget_dongle_battery_status_init(struct zmk_widget_dongle_battery_statu
 
     for (int i = 0; i < ZMK_SPLIT_BLE_PERIPHERAL_COUNT + SOURCE_OFFSET; i++) {
         lv_obj_t *image_canvas = lv_canvas_create(widget->obj);
+        lv_obj_t *side_label = lv_label_create(widget->obj);
         lv_obj_t *battery_label = lv_label_create(widget->obj);
         lv_obj_t *charge_canvas = lv_canvas_create(widget->obj);
 
@@ -483,12 +490,14 @@ int zmk_widget_dongle_battery_status_init(struct zmk_widget_dongle_battery_statu
             /* Dongle: centre-side field. */
             lv_obj_set_pos(image_canvas, 0, 4);
             lv_obj_set_pos(charge_canvas, 0, 4);
+            lv_obj_set_pos(side_label, 0, 2);
             lv_obj_set_pos(battery_label, 8, 2);
         } else {
             /* Split halves: preserve a stable right-side percentage stack. */
             int peripheral_index = i - SOURCE_OFFSET;
             int y = peripheral_index * 10;
-            lv_obj_set_pos(battery_label, 43, y - 1);
+            lv_obj_set_pos(side_label, 43, y - 1);
+            lv_obj_set_pos(battery_label, 49, y - 1);
             lv_obj_set_pos(image_canvas, 72, y);
             lv_obj_set_pos(charge_canvas, 72, y);
         }
@@ -499,14 +508,18 @@ int zmk_widget_dongle_battery_status_init(struct zmk_widget_dongle_battery_statu
         if (!(SOURCE_OFFSET && i == 0)) {
             int peripheral_index = i - SOURCE_OFFSET;
             const char *side = peripheral_index == 0 ? "L" : "R";
-            lv_label_set_text_fmt(battery_label, "%s --", side);
+            lv_label_set_text(side_label, side);
+            lv_label_set_text(battery_label, " --");
+            lv_obj_clear_flag(side_label, LV_OBJ_FLAG_HIDDEN);
             lv_obj_clear_flag(battery_label, LV_OBJ_FLAG_HIDDEN);
         } else {
+            lv_obj_add_flag(side_label, LV_OBJ_FLAG_HIDDEN);
             lv_obj_add_flag(battery_label, LV_OBJ_FLAG_HIDDEN);
         }
 
         battery_objects[i] = (struct battery_object){
             .symbol = image_canvas,
+            .side_label = side_label,
             .label = battery_label,
             .charge_icon = charge_canvas,
         };
