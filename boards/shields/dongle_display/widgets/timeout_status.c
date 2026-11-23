@@ -159,14 +159,36 @@ ZMK_SUBSCRIPTION(widget_timeout_status, zmk_runtime_timeout_changed);
 
 int zmk_widget_timeout_status_init(struct zmk_widget_timeout_status *widget, lv_obj_t *parent) {
     widget->obj = lv_obj_create(parent);
-    lv_obj_set_size(widget->obj, 58, 12);
+    lv_display_t *display = lv_display_get_default();
+    lv_obj_set_size(widget->obj,
+                    lv_display_get_horizontal_resolution(display),
+                    lv_display_get_vertical_resolution(display));
+    lv_obj_set_style_bg_color(widget->obj, lv_color_black(), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(widget->obj, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(widget->obj, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(widget->obj, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(widget->obj, 0, LV_PART_MAIN);
 
-    widget->icon = lv_canvas_create(widget->obj);
+    /*
+     * Keep this compact row independent of LVGL's optional flex feature.
+     * A fixed 64x16 container is sufficient for the 12px icon, 4px gap and
+     * the longest timeout label ("Never"), and remains centered on both
+     * 128x32 and 128x64 displays.
+     */
+    widget->content = lv_obj_create(widget->obj);
+    lv_obj_set_size(widget->content, 64, 16);
+    lv_obj_set_style_bg_opa(widget->content, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(widget->content, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(widget->content, 0, LV_PART_MAIN);
+    lv_obj_align(widget->content, LV_ALIGN_CENTER, 0, 0);
+
+    widget->icon = lv_canvas_create(widget->content);
     lv_canvas_set_buffer(widget->icon, icon_buf, ICON_W, ICON_H, LV_COLOR_FORMAT_L8);
     lv_obj_align(widget->icon, LV_ALIGN_LEFT_MID, 0, 0);
 
-    widget->label = lv_label_create(widget->obj);
-    lv_obj_align_to(widget->label, widget->icon, LV_ALIGN_OUT_RIGHT_MID, 4, 0);
+    widget->label = lv_label_create(widget->content);
+    lv_obj_set_style_text_color(widget->label, lv_color_white(), LV_PART_MAIN);
+    lv_obj_align(widget->label, LV_ALIGN_LEFT_MID, 16, 0);
 
     widget->hide_timer = lv_timer_create(hide_timer_cb, 2500, widget);
     lv_timer_pause(widget->hide_timer);
