@@ -202,6 +202,29 @@ static void stop_charge_breathing(lv_obj_t *icon) {
     lv_obj_set_style_opa(icon, LV_OPA_COVER, LV_PART_MAIN);
 }
 
+/*
+ * Peripheral charging is represented by the physical-side letter itself.
+ * Keep the battery digits solid and animate only the label's opacity.
+ */
+static void start_side_label_breathing(lv_obj_t *label) {
+    lv_anim_del(label, charge_opa_anim_cb);
+
+    lv_anim_t anim;
+    lv_anim_init(&anim);
+    lv_anim_set_var(&anim, label);
+    lv_anim_set_exec_cb(&anim, charge_opa_anim_cb);
+    lv_anim_set_values(&anim, LV_OPA_30, LV_OPA_COVER);
+    lv_anim_set_duration(&anim, 1000);
+    lv_anim_set_playback_duration(&anim, 1000);
+    lv_anim_set_repeat_count(&anim, LV_ANIM_REPEAT_INFINITE);
+    lv_anim_start(&anim);
+}
+
+static void stop_side_label_breathing(lv_obj_t *label) {
+    lv_anim_del(label, charge_opa_anim_cb);
+    lv_obj_set_style_opa(label, LV_OPA_COVER, LV_PART_MAIN);
+}
+
 static void set_battery_symbol(lv_obj_t *widget, struct battery_state state) {
     if (state.source >= ZMK_SPLIT_BLE_PERIPHERAL_COUNT + SOURCE_OFFSET) {
         return;
@@ -231,7 +254,13 @@ static void set_battery_symbol(lv_obj_t *widget, struct battery_state state) {
 
         if (state.present) {
             lv_label_set_text_fmt(label, "%s%3u", side, MIN(state.level, 100));
+            if (state.charging) {
+                start_side_label_breathing(label);
+            } else {
+                stop_side_label_breathing(label);
+            }
         } else {
+            stop_side_label_breathing(label);
             lv_label_set_text_fmt(label, "%s --", side);
         }
 
