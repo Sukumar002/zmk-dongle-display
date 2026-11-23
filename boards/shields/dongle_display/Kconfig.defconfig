@@ -11,9 +11,9 @@ config ZMK_DISPLAY_STATUS_SCREEN_CUSTOM
     select LV_USE_LABEL
     select LV_USE_IMAGE
     select LV_USE_CANVAS
-    select LV_USE_ANIMIMG 
+    select LV_USE_ANIMIMG
     select LV_USE_ANIMATION
-    select LV_USE_LINE 
+    select LV_USE_LINE
     select LV_FONT_UNSCII_8
     select ZMK_WPM
     imply ZMK_HID_INDICATORS
@@ -36,6 +36,13 @@ config ZMK_DONGLE_DISPLAY_MODIFIERS
 config ZMK_DONGLE_DISPLAY_LAYER
     bool "Display the highest layer widget"
     default y
+
+config ZMK_DONGLE_DISPLAY_COMPACT_MODE
+    bool "Use the full-screen 128x32 dongle display layout"
+    default n
+    help
+      Replaces the normal dashboard with a toggleable modifier view and
+      shows active non-base layer names across the full 128x32 display.
 
 config ZMK_DONGLE_DISPLAY_LAYER_NAME_SCROLL_WIDTH
     int "Width for layer name label (in pixels)"

@@ -1,15 +1,11 @@
 /*
  * Copyright (c) 2020 The ZMK Contributors
- *
  * SPDX-License-Identifier: MIT
  */
-
 #pragma once
-
 #include <lvgl.h>
 #include <zephyr/kernel.h>
 #include <stdbool.h>
-
 struct zmk_widget_layer_status {
     sys_snode_t node;
     lv_obj_t *obj;
@@ -17,7 +13,8 @@ struct zmk_widget_layer_status {
     lv_obj_t *label_bold;
     uint8_t layer;
 };
-
 int zmk_widget_layer_status_init(struct zmk_widget_layer_status *widget, lv_obj_t *parent);
 void zmk_widget_layer_status_set_base_text_enabled(bool enabled);
+void zmk_widget_layer_status_set_overlay_active(bool active);
+void zmk_widget_layer_status_refresh(void);
 lv_obj_t *zmk_widget_layer_status_obj(struct zmk_widget_layer_status *widget);
