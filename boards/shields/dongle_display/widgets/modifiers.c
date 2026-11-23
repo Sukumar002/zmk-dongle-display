@@ -23,18 +23,14 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include "modifiers.h"
 
 /*
- * Layout-shift OS mode:
- *   map inactive = macOS semantics
- *   map active   = Windows semantics (GUI <-> Alt)
- *
- * Fall back to the old WIN_BASE layer test if the custom map is absent.
+ * The shared Studio feature DTSI names this device
+ * layout_shift_map_gui_alt_shared. Its active state is the OS-layout source
+ * of truth: inactive = macOS, active = Windows (GUI <-> Alt).
  */
-#define HANA_WIN_BASE_LAYER 1
-
-#if DT_NODE_EXISTS(DT_NODELABEL(layout_shift_map_gui_alt))
+#if DT_NODE_EXISTS(DT_NODELABEL(layout_shift_map_gui_alt_shared))
 #define HANA_HAS_GUI_ALT_LAYOUT_SHIFT 1
 static const struct device *const hana_gui_alt_layout_shift =
-    DEVICE_DT_GET(DT_NODELABEL(layout_shift_map_gui_alt));
+    DEVICE_DT_GET(DT_NODELABEL(layout_shift_map_gui_alt_shared));
 
 struct hana_layout_shift_map_data_view {
     zmk_mod_flags_t modifier_map[8];
@@ -78,36 +74,21 @@ LV_IMG_DECLARE(win_icon);
 /*
  * Four physical display slots.
  *
- * MAC:
- *   Ctrl | Option | Command | Shift
- *
- * WINDOWS:
- *   Win | Alt | Ctrl | Shift
+ * MAC:     Ctrl | Option | Command | Shift
+ * WINDOWS: Ctrl | Win    | Alt     | Shift
  */
 static struct modifier_symbol modifier_slots[4] = {
-    {
-        .modifier = MOD_LCTL | MOD_RCTL,
-        .symbol_dsc = &control_icon,
-    },
-    {
-        .modifier = MOD_LALT | MOD_RALT,
-        .symbol_dsc = &opt_icon,
-    },
-    {
-        .modifier = MOD_LGUI | MOD_RGUI,
-        .symbol_dsc = &cmd_icon,
-    },
-    {
-        .modifier = MOD_LSFT | MOD_RSFT,
-        .symbol_dsc = &shift_icon,
-    },
+    {.modifier = MOD_LCTL | MOD_RCTL, .symbol_dsc = &control_icon},
+    {.modifier = MOD_LALT | MOD_RALT, .symbol_dsc = &opt_icon},
+    {.modifier = MOD_LGUI | MOD_RGUI, .symbol_dsc = &cmd_icon},
+    {.modifier = MOD_LSFT | MOD_RSFT, .symbol_dsc = &shift_icon},
 };
 
 #define NUM_SYMBOLS 4
 
 static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
-
 static bool current_windows_mode = false;
+static struct k_work_delayable layout_shift_refresh_work;
 
 static void anim_y_cb(void *var, int32_t v) {
     lv_obj_set_y(var, v);
@@ -125,41 +106,26 @@ static void move_object_y(void *obj, int32_t from, int32_t to) {
 }
 
 static void configure_mac_symbols(void) {
-    /* Ctrl */
     modifier_slots[0].modifier = MOD_LCTL | MOD_RCTL;
     modifier_slots[0].symbol_dsc = &control_icon;
-
-    /* Option */
     modifier_slots[1].modifier = MOD_LALT | MOD_RALT;
     modifier_slots[1].symbol_dsc = &opt_icon;
-
-    /* Command */
     modifier_slots[2].modifier = MOD_LGUI | MOD_RGUI;
     modifier_slots[2].symbol_dsc = &cmd_icon;
-
-    /* Shift */
     modifier_slots[3].modifier = MOD_LSFT | MOD_RSFT;
     modifier_slots[3].symbol_dsc = &shift_icon;
 }
 
 static void configure_windows_symbols(void) {
-    /* Ctrl */
     modifier_slots[0].modifier = MOD_LCTL | MOD_RCTL;
     modifier_slots[0].symbol_dsc = &control_icon;
-
-    /* Windows */
     modifier_slots[1].modifier = MOD_LGUI | MOD_RGUI;
     modifier_slots[1].symbol_dsc = &win_icon;
-
-    /* Alt */
     modifier_slots[2].modifier = MOD_LALT | MOD_RALT;
     modifier_slots[2].symbol_dsc = &alt_icon;
-
-    /* Shift */
     modifier_slots[3].modifier = MOD_LSFT | MOD_RSFT;
     modifier_slots[3].symbol_dsc = &shift_icon;
 }
-
 
 static void update_symbol_family(bool windows_mode) {
     if (windows_mode == current_windows_mode) {
@@ -174,15 +140,9 @@ static void update_symbol_family(bool windows_mode) {
 
     for (int i = 0; i < NUM_SYMBOLS; i++) {
         if (modifier_slots[i].symbol != NULL) {
-            lv_img_set_src(modifier_slots[i].symbol,
-                           modifier_slots[i].symbol_dsc);
+            lv_img_set_src(modifier_slots[i].symbol, modifier_slots[i].symbol_dsc);
         }
-
-        /*
-         * Force modifier activity to be re-evaluated after the layout
-         * changes. This avoids carrying an underline state from a
-         * different modifier occupying the same display slot.
-         */
+        /* Re-evaluate underline state when a slot changes modifier identity. */
         modifier_slots[i].is_active = false;
     }
 
@@ -193,23 +153,17 @@ static void set_modifiers(lv_obj_t *widget, struct modifiers_state state) {
     update_symbol_family(state.windows_mode);
 
     for (int i = 0; i < NUM_SYMBOLS; i++) {
-        bool mod_is_active =
-            state.modifiers & modifier_slots[i].modifier;
+        bool mod_is_active = state.modifiers & modifier_slots[i].modifier;
 
         if (mod_is_active && !modifier_slots[i].is_active) {
             move_object_y(modifier_slots[i].symbol, 1, 0);
-            move_object_y(modifier_slots[i].selection_line,
-                          SIZE_SYMBOLS + 4,
+            move_object_y(modifier_slots[i].selection_line, SIZE_SYMBOLS + 4,
                           SIZE_SYMBOLS + 2);
-
             modifier_slots[i].is_active = true;
-
         } else if (!mod_is_active && modifier_slots[i].is_active) {
             move_object_y(modifier_slots[i].symbol, 0, 1);
-            move_object_y(modifier_slots[i].selection_line,
-                          SIZE_SYMBOLS + 2,
+            move_object_y(modifier_slots[i].selection_line, SIZE_SYMBOLS + 2,
                           SIZE_SYMBOLS + 4);
-
             modifier_slots[i].is_active = false;
         }
     }
@@ -217,17 +171,16 @@ static void set_modifiers(lv_obj_t *widget, struct modifiers_state state) {
 
 static void modifiers_update_cb(struct modifiers_state state) {
     struct zmk_widget_modifiers *widget;
-
     SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
         set_modifiers(widget->obj, state);
     }
 }
 
-static struct modifiers_state modifiers_get_state(const zmk_event_t *eh) {
+static struct modifiers_state modifiers_get_state(void) {
 #if HANA_HAS_GUI_ALT_LAYOUT_SHIFT
     bool windows_mode = hana_layout_shift_windows_mode();
 #else
-    bool windows_mode = zmk_keymap_layer_active(HANA_WIN_BASE_LAYER);
+    bool windows_mode = false;
 #endif
 
     return (struct modifiers_state) {
@@ -235,6 +188,25 @@ static struct modifiers_state modifiers_get_state(const zmk_event_t *eh) {
         .windows_mode = windows_mode,
     };
 }
+
+/*
+ * The layout-toggle behavior consumes the physical key event and changes the
+ * map state during event dispatch. Refresh after dispatch so the OLED reads
+ * the new map state rather than the previous one.
+ */
+static void layout_shift_refresh_work_handler(struct k_work *work) {
+    ARG_UNUSED(work);
+    modifiers_update_cb(modifiers_get_state());
+}
+
+static int layout_shift_refresh_listener_cb(const zmk_event_t *eh) {
+    ARG_UNUSED(eh);
+    k_work_reschedule(&layout_shift_refresh_work, K_MSEC(10));
+    return ZMK_EV_EVENT_BUBBLE;
+}
+
+ZMK_LISTENER(widget_modifiers_layout_shift_refresh, layout_shift_refresh_listener_cb);
+ZMK_SUBSCRIPTION(widget_modifiers_layout_shift_refresh, zmk_position_state_changed);
 
 ZMK_DISPLAY_WIDGET_LISTENER(
     widget_modifiers,
@@ -245,19 +217,10 @@ ZMK_DISPLAY_WIDGET_LISTENER(
 
 ZMK_SUBSCRIPTION(widget_modifiers, zmk_keycode_state_changed);
 ZMK_SUBSCRIPTION(widget_modifiers, zmk_layer_state_changed);
-ZMK_SUBSCRIPTION(widget_modifiers, zmk_position_state_changed);
 
-int zmk_widget_modifiers_init(
-    struct zmk_widget_modifiers *widget,
-    lv_obj_t *parent
-) {
+int zmk_widget_modifiers_init(struct zmk_widget_modifiers *widget, lv_obj_t *parent) {
     widget->obj = lv_obj_create(parent);
-
-    lv_obj_set_size(
-        widget->obj,
-        NUM_SYMBOLS * (SIZE_SYMBOLS + 1) + 1,
-        SIZE_SYMBOLS + 3
-    );
+    lv_obj_set_size(widget->obj, NUM_SYMBOLS * (SIZE_SYMBOLS + 1) + 1, SIZE_SYMBOLS + 3);
 
     static lv_style_t style_line;
     lv_style_init(&style_line);
@@ -268,14 +231,7 @@ int zmk_widget_modifiers_init(
         {SIZE_SYMBOLS, 0}
     };
 
-    /*
-     * Start with the icon family matching the current OS mode.
-     */
-#if HANA_HAS_GUI_ALT_LAYOUT_SHIFT
-    current_windows_mode = hana_layout_shift_windows_mode();
-#else
-    current_windows_mode = zmk_keymap_layer_active(HANA_WIN_BASE_LAYER);
-#endif
+    current_windows_mode = modifiers_get_state().windows_mode;
     if (current_windows_mode) {
         configure_windows_symbols();
     } else {
@@ -284,52 +240,24 @@ int zmk_widget_modifiers_init(
 
     for (int i = 0; i < NUM_SYMBOLS; i++) {
         modifier_slots[i].symbol = lv_img_create(widget->obj);
+        lv_obj_align(modifier_slots[i].symbol, LV_ALIGN_TOP_LEFT,
+                     1 + (SIZE_SYMBOLS + 1) * i, 1);
+        lv_img_set_src(modifier_slots[i].symbol, modifier_slots[i].symbol_dsc);
 
-        lv_obj_align(
-            modifier_slots[i].symbol,
-            LV_ALIGN_TOP_LEFT,
-            1 + (SIZE_SYMBOLS + 1) * i,
-            1
-        );
-
-        lv_img_set_src(
-            modifier_slots[i].symbol,
-            modifier_slots[i].symbol_dsc
-        );
-
-        modifier_slots[i].selection_line =
-            lv_line_create(widget->obj);
-
-        lv_line_set_points(
-            modifier_slots[i].selection_line,
-            selection_line_points,
-            2
-        );
-
-        lv_obj_add_style(
-            modifier_slots[i].selection_line,
-            &style_line,
-            0
-        );
-
-        lv_obj_align_to(
-            modifier_slots[i].selection_line,
-            modifier_slots[i].symbol,
-            LV_ALIGN_OUT_BOTTOM_LEFT,
-            0,
-            3
-        );
+        modifier_slots[i].selection_line = lv_line_create(widget->obj);
+        lv_line_set_points(modifier_slots[i].selection_line, selection_line_points, 2);
+        lv_obj_add_style(modifier_slots[i].selection_line, &style_line, 0);
+        lv_obj_align_to(modifier_slots[i].selection_line, modifier_slots[i].symbol,
+                        LV_ALIGN_OUT_BOTTOM_LEFT, 0, 3);
     }
 
+    k_work_init_delayable(&layout_shift_refresh_work, layout_shift_refresh_work_handler);
     sys_slist_append(&widgets, &widget->node);
-
     widget_modifiers_init();
 
     return 0;
 }
 
-lv_obj_t *zmk_widget_modifiers_obj(
-    struct zmk_widget_modifiers *widget
-) {
+lv_obj_t *zmk_widget_modifiers_obj(struct zmk_widget_modifiers *widget) {
     return widget->obj;
 }
