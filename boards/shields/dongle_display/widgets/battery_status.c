@@ -63,6 +63,7 @@ static struct battery_state cached_peripheral_states[PERIPHERAL_CACHE_COUNT];
 static bool cached_peripheral_state_valid[PERIPHERAL_CACHE_COUNT];
 static enum zmk_split_peripheral_side peripheral_sides[PERIPHERAL_CACHE_COUNT];
 static bool peripheral_side_valid[PERIPHERAL_CACHE_COUNT];
+static bool peripheral_connected[PERIPHERAL_CACHE_COUNT];
 
 /*
  * Battery events are indexed by BLE connection slot. The display has fixed
@@ -334,7 +335,9 @@ static struct battery_state peripheral_battery_status_get_state(const zmk_event_
     const struct zmk_peripheral_battery_state_changed *ev = as_zmk_peripheral_battery_state_changed(eh);
     const uint8_t source = ev->source;
     struct battery_state state = {
-        .source = peripheral_display_source(source),
+        .source = (source < ZMK_SPLIT_BLE_PERIPHERAL_COUNT && peripheral_connected[source])
+                      ? peripheral_display_source(source)
+                      : UINT8_MAX,
         .level = ev->state_of_charge,
         .charging = false,
         .present = true,
@@ -408,12 +411,14 @@ static int dongle_peripheral_identity_listener_cb(const zmk_event_t *eh) {
          * The disconnect event carries the last known physical identity.
          * Render the disconnected placeholder before clearing that mapping.
          */
-        peripheral_side_valid[source] = ev->identity_valid;
-        peripheral_sides[source] = ev->identity_valid
-                                       ? ev->side
-                                       : ZMK_SPLIT_PERIPHERAL_SIDE_UNKNOWN;
-
+        /* Preserve the last known side if disconnect lacks identity metadata. */
         if (ev->identity_valid) {
+            peripheral_side_valid[source] = true;
+            peripheral_sides[source] = ev->side;
+        }
+        peripheral_connected[source] = false;
+
+        if (peripheral_side_valid[source]) {
             struct battery_state state = {
                 .source = peripheral_display_source(source),
                 .level = 0,
@@ -424,15 +429,14 @@ static int dongle_peripheral_identity_listener_cb(const zmk_event_t *eh) {
         }
 
         cached_peripheral_state_valid[source] = false;
-        peripheral_side_valid[source] = false;
-        peripheral_sides[source] = ZMK_SPLIT_PERIPHERAL_SIDE_UNKNOWN;
         return ZMK_EV_EVENT_BUBBLE;
     }
 
-    peripheral_side_valid[source] = ev->identity_valid;
-    peripheral_sides[source] = ev->identity_valid
-                                   ? ev->side
-                                   : ZMK_SPLIT_PERIPHERAL_SIDE_UNKNOWN;
+    peripheral_connected[source] = true;
+    if (ev->identity_valid) {
+        peripheral_side_valid[source] = true;
+        peripheral_sides[source] = ev->side;
+    }
 
     if (cached_peripheral_state_valid[source]) {
         struct battery_state state = cached_peripheral_states[source];
