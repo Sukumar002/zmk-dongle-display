@@ -176,7 +176,8 @@ static void modifiers_update_cb(struct modifiers_state state) {
     }
 }
 
-static struct modifiers_state modifiers_get_state(void) {
+static struct modifiers_state modifiers_get_state(const zmk_event_t *eh) {
+    ARG_UNUSED(eh);
 #if HANA_HAS_GUI_ALT_LAYOUT_SHIFT
     bool windows_mode = hana_layout_shift_windows_mode();
 #else
@@ -196,7 +197,7 @@ static struct modifiers_state modifiers_get_state(void) {
  */
 static void layout_shift_refresh_work_handler(struct k_work *work) {
     ARG_UNUSED(work);
-    modifiers_update_cb(modifiers_get_state());
+    modifiers_update_cb(modifiers_get_state(NULL));
 }
 
 static int layout_shift_refresh_listener_cb(const zmk_event_t *eh) {
@@ -231,7 +232,7 @@ int zmk_widget_modifiers_init(struct zmk_widget_modifiers *widget, lv_obj_t *par
         {SIZE_SYMBOLS, 0}
     };
 
-    current_windows_mode = modifiers_get_state().windows_mode;
+    current_windows_mode = modifiers_get_state(NULL).windows_mode;
     if (current_windows_mode) {
         configure_windows_symbols();
     } else {
