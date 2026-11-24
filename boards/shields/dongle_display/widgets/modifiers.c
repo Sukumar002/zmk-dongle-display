@@ -14,6 +14,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/events/keycode_state_changed.h>
 #include <zmk/events/layer_state_changed.h>
 #include <zmk/events/position_state_changed.h>
+#include <zmk/events/layout_shift_state_changed.h>
 #include <zmk/hid.h>
 #include <zmk/keymap.h>
 #include <dt-bindings/zmk/modifiers.h>
@@ -246,6 +247,7 @@ ZMK_DISPLAY_WIDGET_LISTENER(
 ZMK_SUBSCRIPTION(widget_modifiers, zmk_keycode_state_changed);
 ZMK_SUBSCRIPTION(widget_modifiers, zmk_layer_state_changed);
 ZMK_SUBSCRIPTION(widget_modifiers, zmk_position_state_changed);
+ZMK_SUBSCRIPTION(widget_modifiers, zmk_layout_shift_state_changed);
 
 int zmk_widget_modifiers_init(
     struct zmk_widget_modifiers *widget,
