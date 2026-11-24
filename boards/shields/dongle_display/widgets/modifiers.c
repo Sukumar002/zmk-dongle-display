@@ -46,20 +46,12 @@ static const struct device *const hana_gui_alt_layout_shift =
 #endif
 
 #if HANA_HAS_GUI_ALT_LAYOUT_SHIFT
-struct hana_layout_shift_map_data_view {
-    zmk_mod_flags_t modifier_map[8];
-    bool active;
-};
-
-static bool hana_layout_shift_windows_mode(void) {
-    if (!device_is_ready(hana_gui_alt_layout_shift)) {
-        return false;
-    }
-
-    const struct hana_layout_shift_map_data_view *data =
-        hana_gui_alt_layout_shift->data;
-    return data->active;
-}
+/*
+ * The layout-shift event is the public state contract. Do not inspect the
+ * private behavior-device data layout: that layout can change independently
+ * of the display module and caused stale/incorrect modifier-family reads.
+ */
+static bool layout_shift_windows_mode;
 #endif
 
 struct modifiers_state {
@@ -182,15 +174,17 @@ static void update_symbol_family(bool windows_mode) {
 
     for (int i = 0; i < NUM_SYMBOLS; i++) {
         if (modifier_slots[i].symbol != NULL) {
+            lv_anim_del(modifier_slots[i].symbol, anim_y_cb);
             lv_img_set_src(modifier_slots[i].symbol,
                            modifier_slots[i].symbol_dsc);
+            lv_obj_set_y(modifier_slots[i].symbol, 1);
+        }
+        if (modifier_slots[i].selection_line != NULL) {
+            lv_anim_del(modifier_slots[i].selection_line, anim_y_cb);
+            lv_obj_set_y(modifier_slots[i].selection_line, SIZE_SYMBOLS + 4);
         }
 
-        /*
-         * Force modifier activity to be re-evaluated after the layout
-         * changes. This avoids carrying an underline state from a
-         * different modifier occupying the same display slot.
-         */
+        /* Reset both visual position and logical state before re-evaluation. */
         modifier_slots[i].is_active = false;
     }
 
@@ -233,7 +227,12 @@ static void modifiers_update_cb(struct modifiers_state state) {
 
 static struct modifiers_state modifiers_get_state(const zmk_event_t *eh) {
 #if HANA_HAS_GUI_ALT_LAYOUT_SHIFT
-    bool windows_mode = hana_layout_shift_windows_mode();
+    const struct zmk_layout_shift_state_changed *layout_event =
+        as_zmk_layout_shift_state_changed(eh);
+    if (layout_event != NULL) {
+        layout_shift_windows_mode = layout_event->active;
+    }
+    bool windows_mode = layout_shift_windows_mode;
 #else
     bool windows_mode = zmk_keymap_layer_active(HANA_WIN_BASE_LAYER);
 #endif
@@ -281,7 +280,7 @@ int zmk_widget_modifiers_init(
      * Start with the icon family matching the current OS mode.
      */
 #if HANA_HAS_GUI_ALT_LAYOUT_SHIFT
-    current_windows_mode = hana_layout_shift_windows_mode();
+    current_windows_mode = layout_shift_windows_mode;
 #else
     current_windows_mode = zmk_keymap_layer_active(HANA_WIN_BASE_LAYER);
 #endif
