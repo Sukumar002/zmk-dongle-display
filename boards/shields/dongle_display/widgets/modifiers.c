@@ -28,36 +28,32 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
  *   map inactive = macOS semantics
  *   map active   = Windows semantics (GUI <-> Alt)
  *
- * Chocofi uses the shared map label. Hana's original label remains
- * supported. Only boards without either map use the legacy layer fallback.
+ * Every board exposes this map through the stable public devicetree label
+ * "layout_shift_map_gui_alt". The node's implementation name may vary.
+ * Boards without the map retain the legacy layer fallback.
  */
-#define HANA_WIN_BASE_LAYER 1
+#define LEGACY_WIN_BASE_LAYER 1
 
-#if DT_NODE_EXISTS(DT_NODELABEL(layout_shift_map_gui_alt_shared))
-#define HANA_HAS_GUI_ALT_LAYOUT_SHIFT 1
-static const struct device *const hana_gui_alt_layout_shift =
-    DEVICE_DT_GET(DT_NODELABEL(layout_shift_map_gui_alt_shared));
-#elif DT_NODE_EXISTS(DT_NODELABEL(layout_shift_map_gui_alt))
-#define HANA_HAS_GUI_ALT_LAYOUT_SHIFT 1
-static const struct device *const hana_gui_alt_layout_shift =
+#if DT_NODE_EXISTS(DT_NODELABEL(layout_shift_map_gui_alt))
+#define HAS_GUI_ALT_LAYOUT_SHIFT 1
+static const struct device *const gui_alt_layout_shift_map =
     DEVICE_DT_GET(DT_NODELABEL(layout_shift_map_gui_alt));
 #else
-#define HANA_HAS_GUI_ALT_LAYOUT_SHIFT 0
+#define HAS_GUI_ALT_LAYOUT_SHIFT 0
 #endif
 
-#if HANA_HAS_GUI_ALT_LAYOUT_SHIFT
-struct hana_layout_shift_map_data_view {
+#if HAS_GUI_ALT_LAYOUT_SHIFT
+struct layout_shift_map_data_view {
     zmk_mod_flags_t modifier_map[8];
     bool active;
 };
 
-static bool hana_layout_shift_windows_mode(void) {
-    if (!device_is_ready(hana_gui_alt_layout_shift)) {
+static bool layout_shift_windows_mode(void) {
+    if (!device_is_ready(gui_alt_layout_shift_map)) {
         return false;
     }
 
-    const struct hana_layout_shift_map_data_view *data =
-        hana_gui_alt_layout_shift->data;
+    const struct layout_shift_map_data_view *data = gui_alt_layout_shift_map->data;
     return data->active;
 }
 #endif
@@ -232,10 +228,10 @@ static void modifiers_update_cb(struct modifiers_state state) {
 }
 
 static struct modifiers_state modifiers_get_state(const zmk_event_t *eh) {
-#if HANA_HAS_GUI_ALT_LAYOUT_SHIFT
-    bool windows_mode = hana_layout_shift_windows_mode();
+#if HAS_GUI_ALT_LAYOUT_SHIFT
+    bool windows_mode = layout_shift_windows_mode();
 #else
-    bool windows_mode = zmk_keymap_layer_active(HANA_WIN_BASE_LAYER);
+    bool windows_mode = zmk_keymap_layer_active(LEGACY_WIN_BASE_LAYER);
 #endif
 
     return (struct modifiers_state) {
