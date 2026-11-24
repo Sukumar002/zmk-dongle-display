@@ -28,15 +28,24 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
  *   map inactive = macOS semantics
  *   map active   = Windows semantics (GUI <-> Alt)
  *
- * Fall back to the old WIN_BASE layer test if the custom map is absent.
+ * Chocofi uses the shared map label. Hana's original label remains
+ * supported. Only boards without either map use the legacy layer fallback.
  */
 #define HANA_WIN_BASE_LAYER 1
 
-#if DT_NODE_EXISTS(DT_NODELABEL(layout_shift_map_gui_alt))
+#if DT_NODE_EXISTS(DT_NODELABEL(layout_shift_map_gui_alt_shared))
+#define HANA_HAS_GUI_ALT_LAYOUT_SHIFT 1
+static const struct device *const hana_gui_alt_layout_shift =
+    DEVICE_DT_GET(DT_NODELABEL(layout_shift_map_gui_alt_shared));
+#elif DT_NODE_EXISTS(DT_NODELABEL(layout_shift_map_gui_alt))
 #define HANA_HAS_GUI_ALT_LAYOUT_SHIFT 1
 static const struct device *const hana_gui_alt_layout_shift =
     DEVICE_DT_GET(DT_NODELABEL(layout_shift_map_gui_alt));
+#else
+#define HANA_HAS_GUI_ALT_LAYOUT_SHIFT 0
+#endif
 
+#if HANA_HAS_GUI_ALT_LAYOUT_SHIFT
 struct hana_layout_shift_map_data_view {
     zmk_mod_flags_t modifier_map[8];
     bool active;
@@ -51,8 +60,6 @@ static bool hana_layout_shift_windows_mode(void) {
         hana_gui_alt_layout_shift->data;
     return data->active;
 }
-#else
-#define HANA_HAS_GUI_ALT_LAYOUT_SHIFT 0
 #endif
 
 struct modifiers_state {
