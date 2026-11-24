@@ -276,10 +276,10 @@ int zmk_widget_modifiers_init(
     /*
      * Start with the icon family matching the current OS mode.
      */
-#if HANA_HAS_GUI_ALT_LAYOUT_SHIFT
-    current_windows_mode = hana_layout_shift_windows_mode();
+#if HAS_GUI_ALT_LAYOUT_SHIFT
+    current_windows_mode = layout_shift_windows_mode();
 #else
-    current_windows_mode = zmk_keymap_layer_active(HANA_WIN_BASE_LAYER);
+    current_windows_mode = zmk_keymap_layer_active(LEGACY_WIN_BASE_LAYER);
 #endif
     if (current_windows_mode) {
         configure_windows_symbols();
